@@ -21,8 +21,9 @@ linter:
   # `// ignore_for_file: name_of_lint` syntax on the line or in the file
   # producing the lint.
   rules:
-    # avoid_print: false  # Uncomment to disable the `avoid_print` rule
-    # prefer_single_quotes: true  # Uncomment to enable the `prefer_single_quotes` rule
-
-# Additional information about this file can be found at
-# https://dart.dev/guides/language/analysis-options
+    always_declare_return_types: true  # Enforces declaring return types for functions
+    prefer_const_constructors: true    # Encourages the use of constant constructors
+    prefer_final_locals: true          # Prefer using final for local variables if they are not reassigned
+    avoid_print: true                  # Discourages using print statements in the code
+    type_init_formals: true            # Enforces type annotations for constructor initialization formals
+    prefer_single_quotes: true         # Prefer using single quotes instead of double quotes for strings
