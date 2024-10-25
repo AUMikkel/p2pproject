@@ -1,4 +1,6 @@
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
+import 'ui/login/login.dart';
 
 void main() {
   runApp(const MyApp());
@@ -66,7 +68,7 @@ class SecondRoute extends StatelessWidget {
         title: const Text('Second Route'),
       ),
       body: Center(
-        child: ElevatedButton(
+        child: CupertinoButton(
           onPressed: () {
             Navigator.pop(context);
             // Navigate back to first route when tapped.
@@ -157,14 +159,14 @@ class _MyHomePageState extends State<MyHomePage> {
             const Text(
               'New Button',
             ),
-            ElevatedButton(
+            CupertinoButton(
               onPressed: () {
-                Navigator.push(context, MaterialPageRoute(builder: (context) => const SecondRoute()));
+                Navigator.push(context, CupertinoPageRoute(builder: (context) => const LoginScreen()));
                 // TRY THIS: Change the onPressed function to navigate to a new
                 // screen when pressed. Use Navigator.push to push a new route
                 // onto the stack. Use MaterialPageRoute to specify the new screen.
               },
-              child: const Text('Go to new screen'),
+              child: const Text('Go to login screen'),
             ),
           ],
 

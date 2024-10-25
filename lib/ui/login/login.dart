@@ -1,4 +1,6 @@
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
+import 'package:p2prunningapp/ui/register/register.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -18,7 +20,18 @@ class _LoginScreenState extends State<LoginScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Logging in...')),
       );
+      Navigator.push(
+        context,
+        CupertinoPageRoute(builder: (context) => const RegistrationScreen()),
+      );
     }
+  }
+
+  void _navigateToRegister() {
+    Navigator.push(
+      context,
+      CupertinoPageRoute(builder: (context) => const RegistrationScreen()),
+    );
   }
 
   @override
@@ -66,6 +79,11 @@ class _LoginScreenState extends State<LoginScreen> {
               ElevatedButton(
                 onPressed: _login,
                 child: const Text('Login'),
+              ),
+              const SizedBox(height: 16.0),
+              ElevatedButton(
+                onPressed: _navigateToRegister,
+                child: const Text('Register'),
               ),
             ],
           ),

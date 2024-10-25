@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:p2prunningapp/ui/profile/profile.dart';
 
 class RegistrationScreen extends StatefulWidget {
   const RegistrationScreen({super.key});
@@ -18,6 +19,18 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
       // Perform registration action
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Registering...')),
+      );
+
+      // Navigate to ProfileScreen with the entered data
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => ProfileScreen(
+            name: _nameController.text,
+            email: _emailController.text,
+            profileImageUrl: 'https://example.com/profile.jpg', // Placeholder image URL
+          ),
+        ),
       );
     }
   }
