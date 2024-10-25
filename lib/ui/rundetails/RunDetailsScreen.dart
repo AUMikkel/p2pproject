@@ -11,9 +11,9 @@ class RunDetailsScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     // Dummy list of locations (latitude, longitude)
     final List<LatLng> route = [
-      LatLng(37.7749, -122.4194), // San Francisco
-      LatLng(37.7849, -122.4094),
-      LatLng(37.7949, -122.3994),
+      const LatLng(37.7749, -122.4194), // San Francisco
+      const LatLng(37.7849, -122.4094),
+      const LatLng(37.7949, -122.3994),
     ];
 
     return Scaffold(
