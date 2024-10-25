@@ -1,5 +1,6 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
+import 'package:p2prunningapp/ui/profile/profile.dart';
 import 'package:p2prunningapp/ui/register/register.dart';
 
 class LoginScreen extends StatefulWidget {
@@ -22,7 +23,13 @@ class _LoginScreenState extends State<LoginScreen> {
       );
       Navigator.push(
         context,
-        CupertinoPageRoute(builder: (context) => const RegistrationScreen()),
+        CupertinoPageRoute(
+          builder: (context) => ProfileScreen(
+            name: 'User', // Replace with actual user name if available
+            email: _emailController.text,
+            profileImageUrl: 'https://example.com/profile.jpg', // Placeholder image URL
+          ),
+        ),
       );
     }
   }
