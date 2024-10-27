@@ -38,6 +38,10 @@ dependencies:
   mqtt_client: ^10.5.1
   flutter_dotenv: ^5.2.1
   flutter_background_service: ^5.0.10
+  google_maps_flutter: ^2.9.0
+  flutter_map: ^7.0.2
+  latlong2: ^0.9.1
+
 
 dev_dependencies:
   flutter_test:

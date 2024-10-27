@@ -1,4 +1,7 @@
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
+import 'package:p2prunningapp/ui/profile/profile.dart';
+import 'package:p2prunningapp/ui/register/register.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -18,7 +21,24 @@ class _LoginScreenState extends State<LoginScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Logging in...')),
       );
+      Navigator.push(
+        context,
+        CupertinoPageRoute(
+          builder: (context) => ProfileScreen(
+            name: 'User', // Replace with actual user name if available
+            email: _emailController.text,
+            profileImageUrl: 'https://example.com/profile.jpg', // Placeholder image URL
+          ),
+        ),
+      );
     }
+  }
+
+  void _navigateToRegister() {
+    Navigator.push(
+      context,
+      CupertinoPageRoute(builder: (context) => const RegistrationScreen()),
+    );
   }
 
   @override
@@ -66,6 +86,11 @@ class _LoginScreenState extends State<LoginScreen> {
               ElevatedButton(
                 onPressed: _login,
                 child: const Text('Login'),
+              ),
+              const SizedBox(height: 16.0),
+              ElevatedButton(
+                onPressed: _navigateToRegister,
+                child: const Text('Register'),
               ),
             ],
           ),
