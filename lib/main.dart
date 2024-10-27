@@ -1,8 +1,27 @@
-import 'package:flutter/material.dart';
+import 'dart:async';
 
-void main() {
+import 'package:flutter/material.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'package:flutter_background_service/flutter_background_service.dart';
+import 'package:mqtt_client/mqtt_client.dart';
+import 'package:p2prunningapp/services/mqtt_service.dart';
+import 'package:p2prunningapp/sensors/gps.dart';
+import 'package:p2prunningapp/sensors/imu.dart';
+
+Future<void> main() async{
+  WidgetsFlutterBinding.ensureInitialized();
+  await dotenv.load(fileName: ".env"); // Load environment variables
   runApp(const MyApp());
+  onStart();
 }
+/*
+    final gpsService = GPSService();
+    final imuService = IMUService();
+
+    // Example of sending data
+    gpsService.sendGPSData(55.6761, 12.5683); // Example GPS data
+    imuService.sendIMUData(1.0, 0.0, 0.0); // Example IMU data
+*/
 
 class MyApp extends StatelessWidget {
   const MyApp({super.key});
@@ -180,4 +199,34 @@ class _MyHomePageState extends State<MyHomePage> {
       // This trailing comma makes auto-formatting nicer for build methods.
     );
   }
+}
+
+void onStart() async {
+  final mqttService = MQTTService();
+  await mqttService.initializeMQTT();
+
+  final gpsService = GPSService();
+  final imuService = IMUService();
+
+  // Example of sending data
+  // gpsService.sendGPSData(55.6761, 12.5683); // Example GPS data
+  // imuService.sendIMUData(1.0, 0.0, 0.0); // Example IMU data
+
+  // Example condition for sending data
+  bool shouldSendData = true; // Replace this with your actual condition
+  // Keep the service alive and maintain the connection
+  Timer.periodic(Duration(seconds: 30), (timer) {
+    if (mqttService.client.connectionStatus!.state == MqttConnectionState.connected) {
+      print('MQTT connection is alive.');
+
+      // Check the condition to send GPS and IMU data
+      if (shouldSendData) {
+        gpsService.sendGPSData(55.6761, 12.5683); // Example GPS data
+        imuService.sendIMUData(1.0, 0.0, 0.0); // Example IMU data
+      }
+    } else {
+      print('MQTT connection lost. Attempting to reconnect...');
+      mqttService.initializeMQTT();
+    }
+  });
 }
