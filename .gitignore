@@ -31,4 +31,6 @@ bin/
 ### Flutter/Dart ###
 .dart_tool/
 .idea/
-
+.env
+.flutter-plugins
+.flutter-plugins-dependencies
