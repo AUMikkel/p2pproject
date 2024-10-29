@@ -11,9 +11,9 @@ class RunDetailsScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     // Dummy list of locations (latitude, longitude)
     final List<LatLng> route = [
-      const LatLng(37.7749, -122.4194), // San Francisco
+      const LatLng(37.7749, -122.4194), // Start point
       const LatLng(37.7849, -122.4094),
-      const LatLng(37.7949, -122.3994),
+      const LatLng(37.7949, -122.3994), // End point
     ];
 
     return Scaffold(
@@ -50,15 +50,36 @@ class RunDetailsScreen extends StatelessWidget {
                   ],
                 ),
                 MarkerLayer(
-                  markers: route
-                      .map((location) => Marker(
-                    point: location,
-                    child: const Icon(
-                      Icons.location_on,
-                      color: Colors.red,
+                  markers: [
+                    // Start Point Marker with Tooltip
+                    Marker(
+                      point: route.first,
+                      width: 40,
+                      height: 40,
+                      child: const Tooltip(
+                        message: 'Start Point',
+                        child: Icon(
+                          Icons.location_on,
+                          color: Colors.red,
+                          size: 30.0,
+                        ),
+                      ),
                     ),
-                  ))
-                      .toList(),
+                    // Goal Point Marker with Tooltip
+                    Marker(
+                      point: route.last,
+                      width: 40,
+                      height: 40,
+                      child: const Tooltip(
+                        message: 'Goal Point',
+                        child: Icon(
+                          Icons.flag,
+                          color: Colors.green,
+                          size: 30.0,
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
               ],
             ),
