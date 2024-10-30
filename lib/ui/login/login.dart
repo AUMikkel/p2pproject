@@ -1,7 +1,11 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:p2prunningapp/ui/profile/profile.dart';
 import 'package:p2prunningapp/ui/register/register.dart';
+import 'package:p2prunningapp/ui/shared/UserSession.dart';
+import 'package:p2prunningapp/ui/home/homescreen.dart';
+import '../shared/UserSession.dart'; // Import UserSession class
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -15,20 +19,28 @@ class _LoginScreenState extends State<LoginScreen> {
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
 
-  void _login() {
+  Future<void> _login() async {
     if (_formKey.currentState!.validate()) {
-      // Perform login action
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Logging in...')),
+      // Simulate successful login with placeholder data
+      const String userName = "John Doe";
+      const String profileImageUrl = "https://example.com/profile.jpg";
+
+      // Save user data to UserSession
+      await UserSession().saveUserData(
+        _passwordController.text,
+        _emailController.text,
+        profileImageUrl,
       );
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Logging in...'), duration: Duration(seconds: 1)),
+
+      );
+
       Navigator.push(
         context,
         CupertinoPageRoute(
-          builder: (context) => ProfileScreen(
-            name: 'User', // Replace with actual user name if available
-            email: _emailController.text,
-            profileImageUrl: 'https://example.com/profile.jpg', // Placeholder image URL
-          ),
+          builder: (context) => HomeScreen(),
         ),
       );
     }
@@ -48,21 +60,19 @@ class _LoginScreenState extends State<LoginScreen> {
         padding: const EdgeInsets.all(16.0),
         child: Stack(
           children: [
-            // Position the large logo towards the top without affecting the form
             const Positioned(
-              top: 60, // Adjust this value to control the height of the logo
+              top: 60,
               left: 0,
               right: 0,
               child: CircleAvatar(
-                radius: 150, // Make the logo larger
+                radius: 150,
                 backgroundImage: AssetImage('lib/assets/p2plogo.jpg'),
                 backgroundColor: Colors.transparent,
               ),
             ),
-            // Center the form content vertically without moving the form down too much
             Center(
               child: Padding(
-                padding: const EdgeInsets.only(top: 300), // Push form below the large logo
+                padding: const EdgeInsets.only(top: 300),
                 child: Form(
                   key: _formKey,
                   child: Column(
