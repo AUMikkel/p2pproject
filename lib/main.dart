@@ -8,13 +8,13 @@ import 'package:p2prunningapp/services/mqtt_service.dart';
 import 'package:p2prunningapp/sensors/gps.dart';
 import 'package:p2prunningapp/sensors/imu.dart';
 import 'ui/login/login.dart';
+import 'package:p2prunningapp/services/bleService.dart';
 
 Future<void> main() async {
 
   WidgetsFlutterBinding.ensureInitialized();
   await dotenv.load(fileName: '.env'); // Load environment variables
   runApp(const MyApp());
-  onStart();
 }
 
 final ThemeData appTheme = ThemeData(
@@ -65,6 +65,7 @@ class MyApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    onStart(context);
     return MaterialApp(
       title: 'Peer2Peer Running',
       theme: appTheme,
@@ -119,7 +120,11 @@ class _MyHomePageState extends State<MyHomePage> {
   }
 }
 
-void onStart() async {
+void onStart(BuildContext context) async {
+  final bleService = BLEService();
+  await bleService.initialize(context);
+  //await bleService.startScan();
+  await bleService.connectToDevice();
   final mqttService = MQTTService();
   await mqttService.initializeMQTT();
 
