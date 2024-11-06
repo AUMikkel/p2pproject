@@ -84,7 +84,7 @@ class BLEService {
     await FlutterBluePlus.startScan(
         //withServices: [Guid("180D")], // match any of the specified services
         //withNames: ["ble-uart"], // *or* any of the specified names
-        timeout: Duration(seconds: 15));
+        timeout: Duration(seconds: 60));
 
     // wait for scanning to stop
     await FlutterBluePlus.isScanning
@@ -104,51 +104,58 @@ class BLEService {
     return _scanResults;
   }
 
-  Future<void> connectToDevice(String deviceId) async {
+  Future<void> connectToDevice() async {
     try {
-      // Find the device from the scan results
-      //ScanResult? targetResults = _scanResults.firstWhere((result) => result.device.remoteId.str == deviceId, orElse: () => null);
-      var targetResult = null;
-      // loop through _scanResults list to find the device
-      for (ScanResult result in _scanResults) {
-        if (result.device.remoteId.str == deviceId) {
-          targetResult = result;
+      // Check if the device is already connected
+      List<BluetoothDevice> connectedDevices = await FlutterBluePlus.connectedDevices;
+      BluetoothDevice? targetDevice;
+      print('Connected devices: ${connectedDevices.length}');
+      for (var device in connectedDevices) {
+        print('Connected device ID (MAC or UUID): ${device.remoteId}');
+      }
+      var deviceId = "john";
+      // Try to find the device among already connected devices
+      for (BluetoothDevice device in connectedDevices) {
+        if (device.remoteId.str == deviceId) {
+          targetDevice = device;
+          print('Device already connected: ${device.remoteId}');
           break;
         }
       }
 
-      if (targetResult != null) {
-        BluetoothDevice device = targetResult.device;
-
-        // Listen for disconnection
-        var subscription = device.connectionState.listen((BluetoothConnectionState state) async {
-          if (state == BluetoothConnectionState.disconnected) {
-            // 1. typically, start a periodic timer that tries to
-            //    reconnect, or just call connect() again right now
-            // 2. you must always re-discover services after disconnection!
-            // Connect to the device
-            print('${device.disconnectReason?.code} ${device.disconnectReason?.description}');
-            await device.connect();
-            print('Connected to device: $deviceId');
+      // If the device is not among connected devices, search in scan results
+      if (targetDevice == null) {
+        for (ScanResult result in _scanResults) {
+          if (result.device.remoteId.str == deviceId) {
+            targetDevice = result.device;
+            break;
           }
-        });
-        // Cleanup: cancel subscription when disconnected
-        //   - [delayed] This option is only meant for `connectionState` subscriptions.
-        //     When `true`, we cancel after a small delay. This ensures the `connectionState`
-        //     listener receives the `disconnected` event.
-        //   - [next] if true, the stream will be canceled only on the *next* disconnection,
-        //     not the current disconnection. This is useful if you setup your subscriptions
-        //     before you connect.
-        device.cancelWhenDisconnected(subscription, delayed: true, next: true);
+        }
 
-        await device.connect();
-        print('Connected to device: $deviceId');
-
-        // Cancel to prevent duplicate listeners
-        subscription.cancel();
-      } else {
-        print('Device not found.');
+        if (targetDevice == null) {
+          print('Device not found in scan results.');
+          return;
+        }
       }
+
+      // Listen for disconnection events to handle reconnection or cleanup
+      var subscription = targetDevice.connectionState.listen((BluetoothConnectionState state) async {
+        if (state == BluetoothConnectionState.disconnected) {
+          print('Disconnected from device: ${targetDevice!.remoteId}');
+          // Optionally, attempt reconnection
+          await targetDevice!.connect();
+        }
+      });
+
+      // Establish connection if not already connected
+      if (targetDevice.connectionState == BluetoothConnectionState.disconnected) {
+        await targetDevice.connect();
+        print('Connected to device: ${targetDevice.remoteId}');
+      }
+
+      // Cleanup: cancel subscription after the first disconnection
+      targetDevice.cancelWhenDisconnected(subscription, delayed: true, next: true);
+
     } catch (e) {
       print('Failed to connect: $e');
     }

@@ -119,8 +119,8 @@ class _MyHomePageState extends State<MyHomePage> {
 void onStart(BuildContext context) async {
   final bleService = BLEService();
   await bleService.initialize(context);
-  await bleService.startScan();
-  //await bleService.connectToDevice(deviceId)
+  //await bleService.startScan();
+  await bleService.connectToDevice();
   final mqttService = MQTTService();
   await mqttService.initializeMQTT();
 
