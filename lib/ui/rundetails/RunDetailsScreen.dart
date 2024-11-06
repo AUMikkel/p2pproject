@@ -16,6 +16,7 @@ class RunDetailsScreen extends StatelessWidget {
       const LatLng(37.7949, -122.3994), // End point
     ];
 
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('Run Details'),
@@ -29,8 +30,10 @@ class RunDetailsScreen extends StatelessWidget {
           Expanded(
             child: FlutterMap(
               options: MapOptions(
-                initialCenter: route[0],
-                initialZoom: 14.0,
+                initialCameraFit: CameraFit.coordinates(
+                coordinates: route, // Fit camera to route coordinates
+                padding: EdgeInsets.all(70)
+                )
               ),
               children: [
                 TileLayer(

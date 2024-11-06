@@ -16,13 +16,13 @@ Future<void> main() async {
 }
 
 final ThemeData appTheme = ThemeData(
-  primaryColor: Color(0xFF00FF77), // Neon green as the primary color
+  primaryColor: const Color(0xFF00FF77), // Neon green as the primary color
   colorScheme: ColorScheme.fromSwatch().copyWith(
-    primary: Color(0xFF00FF77), // Neon green
-    secondary: Color(0xFF00BFFF), // Blue for accent
-    surface: Color(0xFF1A1A1A), // Dark gray for background
+    primary: const Color(0xFF00FF77), // Neon green
+    secondary: const Color(0xFF00BFFF), // Blue for accent
+    surface: const Color(0xFF1A1A1A), // Dark gray for background
   ),
-  scaffoldBackgroundColor: Color(0xFF1A1A1A), // Dark background for the app
+  scaffoldBackgroundColor: const Color(0xFF1A1A1A), // Dark background for the app
   appBarTheme: const AppBarTheme(
     backgroundColor: Color(0xFF00FF77), // Neon green for AppBar
     elevation: 0, // Optional: remove shadow for a flat look
@@ -41,7 +41,7 @@ final ThemeData appTheme = ThemeData(
   inputDecorationTheme: InputDecorationTheme(
     filled: true,
     fillColor: Colors.white.withOpacity(0.1), // Slight transparency
-    labelStyle: TextStyle(color: Color(0xFF00FF77)), // Neon green labels
+    labelStyle: const TextStyle(color: Color(0xFF00FF77)), // Neon green labels
     focusedBorder: const OutlineInputBorder(
       borderSide: BorderSide(color: Color(0xFF00FF77), width: 2.0),
     ),
@@ -51,7 +51,7 @@ final ThemeData appTheme = ThemeData(
   ),
   elevatedButtonTheme: ElevatedButtonThemeData(
     style: ElevatedButton.styleFrom(
-      foregroundColor: Colors.white, backgroundColor: Color(0xFF00BFFF), // White text on buttons
+      foregroundColor: Colors.white, backgroundColor: const Color(0xFF00BFFF), // White text on buttons
     ),
   ),
 );
@@ -133,7 +133,7 @@ void onStart(BuildContext context) async {
       print('MQTT connection is alive.');
 
       if (shouldSendData) {
-        gpsService.sendGPSData(55.6761, 12.5683);
+
         imuService.sendIMUData(1.0, 0.0, 0.0);
       }
     } else {
