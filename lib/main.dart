@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:mqtt_client/mqtt_client.dart';
 import 'package:p2prunningapp/services/mqtt_service.dart';
@@ -9,6 +10,7 @@ import 'package:p2prunningapp/sensors/imu.dart';
 import 'ui/login/login.dart';
 
 Future<void> main() async {
+
   WidgetsFlutterBinding.ensureInitialized();
   await dotenv.load(fileName: '.env'); // Load environment variables
   runApp(const MyApp());
@@ -16,6 +18,7 @@ Future<void> main() async {
 }
 
 final ThemeData appTheme = ThemeData(
+
   primaryColor: const Color(0xFF00FF77), // Neon green as the primary color
   colorScheme: ColorScheme.fromSwatch().copyWith(
     primary: const Color(0xFF00FF77), // Neon green
@@ -32,6 +35,7 @@ final ThemeData appTheme = ThemeData(
       fontSize: 20, // Customize the font size if needed
       fontWeight: FontWeight.bold,
     ),
+    systemOverlayStyle: SystemUiOverlayStyle.light,
   ),
   textTheme: const TextTheme(
     bodyLarge: TextStyle(color: Colors.white),

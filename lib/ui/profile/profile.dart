@@ -35,10 +35,10 @@ class ProfileScreen extends StatelessWidget {
     return Scaffold(
       body: Padding(
         padding: const EdgeInsets.all(16.0),
-        child: Column(
-          children: <Widget>[
-            Expanded(
-              child: Column(
+        child: SingleChildScrollView( // Add this to make content scrollable
+          child: Column(
+            children: <Widget>[
+              Column(
                 crossAxisAlignment: CrossAxisAlignment.center,
                 children: <Widget>[
                   Center(
@@ -119,19 +119,19 @@ class ProfileScreen extends StatelessWidget {
                   ),
                 ],
               ),
-            ),
-            const SizedBox(height: 16.0),
-            ElevatedButton(
-              onPressed: () => _logout(context),
-              style: ElevatedButton.styleFrom(
-                padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 12.0),
+              const SizedBox(height: 16.0),
+              ElevatedButton(
+                onPressed: () => _logout(context),
+                style: ElevatedButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 12.0),
+                ),
+                child: const Text(
+                  'Logout',
+                  style: TextStyle(fontSize: 16),
+                ),
               ),
-              child: const Text(
-                'Logout',
-                style: TextStyle(fontSize: 16),
-              ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );

@@ -1,5 +1,6 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:p2prunningapp/ui/profile/profile.dart';
 import 'package:p2prunningapp/ui/register/register.dart';
@@ -55,24 +56,21 @@ class _LoginScreenState extends State<LoginScreen> {
 
   @override
   Widget build(BuildContext context) {
+    SystemChrome.setSystemUIOverlayStyle(SystemUiOverlayStyle.light);
     return Scaffold(
       body: Padding(
         padding: const EdgeInsets.all(16.0),
-        child: Stack(
+        child: Column(
           children: [
-            const Positioned(
-              top: 60,
-              left: 0,
-              right: 0,
-              child: CircleAvatar(
-                radius: 150,
-                backgroundImage: AssetImage('lib/assets/p2plogo.jpg'),
-                backgroundColor: Colors.transparent,
-              ),
+            const SizedBox(height: 60),
+            const CircleAvatar(
+              radius: 100, // Adjusted to fit better above form
+              backgroundImage: AssetImage('lib/assets/p2plogo.jpg'),
+              backgroundColor: Colors.transparent,
             ),
-            Center(
-              child: Padding(
-                padding: const EdgeInsets.only(top: 300),
+            const SizedBox(height: 30), // Spacing between logo and form
+            Expanded(
+              child: SingleChildScrollView(
                 child: Form(
                   key: _formKey,
                   child: Column(
