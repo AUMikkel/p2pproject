@@ -2,7 +2,7 @@ import 'package:flutter_blue_plus/flutter_blue_plus.dart';
 import 'dart:async';
 import 'package:p2prunningapp/utils/bleUtils.dart';
 
-class bleDevice {
+class BLEDevice {
   int? _rssi;
   int? _mtuSize;
   BluetoothConnectionState _connectionState = BluetoothConnectionState.disconnected;
