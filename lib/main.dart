@@ -65,7 +65,6 @@ class MyApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    onStart(context);
     return MaterialApp(
       title: 'Peer2Peer Running',
       theme: appTheme,
@@ -125,14 +124,14 @@ void onStart(BuildContext context) async {
   await bleService.initialize(context);
   //await bleService.startScan();
   await bleService.connectToDevice();
-  final mqttService = MQTTService();
-  await mqttService.initializeMQTT();
+  //final mqttService = MQTTService();
+  //await mqttService.initializeMQTT();
 
   final gpsService = GPSService();
-  final imuService = IMUService();
+  //final imuService = IMUService(context);
 
-  final bool shouldSendData = true;
-  Timer.periodic(const Duration(seconds: 30), (timer) {
+  /*final bool shouldSendData = false;
+  //Timer.periodic(const Duration(seconds: 30), (timer) {
     if (mqttService.client.connectionStatus!.state == MqttConnectionState.connected) {
       print('MQTT connection is alive.');
 
@@ -144,5 +143,5 @@ void onStart(BuildContext context) async {
       print('MQTT connection lost. Attempting to reconnect...');
       mqttService.initializeMQTT();
     }
-  });
+  });*/
 }
