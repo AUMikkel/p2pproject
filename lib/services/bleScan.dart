@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import 'dart:async';
 import '../utils/bleUtils.dart';
 
-class BLEService {
+class BLEScan {
   List<BluetoothDevice> _systemDevices = [];
   List<ScanResult> _scanResults = [];
   bool _isScanning = false;
@@ -38,8 +38,8 @@ class BLEService {
       print('System Devices Error: $e');
     }
     try {
-      var withName = ['M5UiF'];
-      await FlutterBluePlus.startScan(withNames: withName,timeout: const Duration(seconds: 15));
+      var withName = ['M5UiFlow'];
+      await FlutterBluePlus.startScan(timeout: const Duration(seconds: 15));
     } catch (e) {
       print('Start Scan Error: $e');
     }
@@ -60,6 +60,7 @@ class BLEService {
     });
   }
 
-
+  List<ScanResult> get scanResults => _scanResults;
+  bool get isScanning => _isScanning;
 }
 

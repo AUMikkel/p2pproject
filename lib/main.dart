@@ -8,7 +8,7 @@ import 'package:p2prunningapp/services/mqtt_service.dart';
 import 'package:p2prunningapp/sensors/gps.dart';
 import 'package:p2prunningapp/sensors/imu.dart';
 import 'ui/login/login.dart';
-import 'package:p2prunningapp/services/bleService.dart';
+import 'package:p2prunningapp/services/bleService_old.dart';
 
 Future<void> main() async {
 
