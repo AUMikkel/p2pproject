@@ -5,6 +5,10 @@ allprojects {
     }
 }
 
+dependencies {
+    implementation "com.google.android.gms:play-services-location:21.3.0"
+}
+
 rootProject.buildDir = "../build"
 subprojects {
     project.buildDir = "${rootProject.buildDir}/${project.name}"

@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:mqtt_client/mqtt_client.dart';
 import 'package:p2prunningapp/services/mqtt_service.dart';
@@ -10,12 +11,14 @@ import 'ui/login/login.dart';
 import 'package:p2prunningapp/services/bleService_old.dart';
 
 Future<void> main() async {
+
   WidgetsFlutterBinding.ensureInitialized();
   await dotenv.load(fileName: '.env'); // Load environment variables
   runApp(const MyApp());
 }
 
 final ThemeData appTheme = ThemeData(
+
   primaryColor: const Color(0xFF00FF77), // Neon green as the primary color
   colorScheme: ColorScheme.fromSwatch().copyWith(
     primary: const Color(0xFF00FF77), // Neon green
@@ -32,6 +35,7 @@ final ThemeData appTheme = ThemeData(
       fontSize: 20, // Customize the font size if needed
       fontWeight: FontWeight.bold,
     ),
+    systemOverlayStyle: SystemUiOverlayStyle.light,
   ),
   textTheme: const TextTheme(
     bodyLarge: TextStyle(color: Colors.white),
@@ -61,7 +65,6 @@ class MyApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    onStart(context);
     return MaterialApp(
       title: 'Peer2Peer Running',
       theme: appTheme,
@@ -121,14 +124,14 @@ void onStart(BuildContext context) async {
   await bleService.initialize(context);
   //await bleService.startScan();
   await bleService.connectToDevice();
-  final mqttService = MQTTService();
-  await mqttService.initializeMQTT();
+  //final mqttService = MQTTService();
+  //await mqttService.initializeMQTT();
 
   final gpsService = GPSService();
-  final imuService = IMUService();
+  //final imuService = IMUService(context);
 
-  final bool shouldSendData = true;
-  Timer.periodic(const Duration(seconds: 30), (timer) {
+  /*final bool shouldSendData = false;
+  //Timer.periodic(const Duration(seconds: 30), (timer) {
     if (mqttService.client.connectionStatus!.state == MqttConnectionState.connected) {
       print('MQTT connection is alive.');
 
@@ -140,5 +143,5 @@ void onStart(BuildContext context) async {
       print('MQTT connection lost. Attempting to reconnect...');
       mqttService.initializeMQTT();
     }
-  });
+  });*/
 }
