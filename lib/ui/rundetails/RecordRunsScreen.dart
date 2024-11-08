@@ -130,17 +130,16 @@ class _RecordRunScreenState extends State<RecordRunScreen> {
                     ),
                     MarkerLayer(
                       markers: [
-                        if (currentLocation != null)
-                          Marker(
-                            width: 80,
-                            height: 80,
-                            point: currentLocation,
-                            child: Icon(
-                              Icons.location_on,
-                              color: Colors.red,
-                              size: 40,
-                            ),
+                        Marker(
+                          width: 80,
+                          height: 80,
+                          point: currentLocation,
+                          child: Icon(
+                            Icons.location_on,
+                            color: Colors.red,
+                            size: 40,
                           ),
+                        ),
                       ],
                     ),
                   ],
