@@ -44,7 +44,7 @@ class _HomeScreenState extends State<HomeScreen> {
     // Only create _pages once user data is loaded
     final List<Widget> _pages = [
       RecentRunsScreen(),
-      RecordRunScreen(),
+      RecordRunsScreen(),
       StatsScreen(),
       ProfileScreen(name: name, email: email, profileImageUrl: profileImageUrl),
     ];
