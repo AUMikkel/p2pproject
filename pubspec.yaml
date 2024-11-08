@@ -46,6 +46,7 @@ dependencies:
   flutter_blue_plus: ^1.33.5
   shared_preferences: ^2.3.2
   flutter_activity_recognition: ^4.0.0
+  location: ^7.0.1
 
 
 
