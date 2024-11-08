@@ -18,6 +18,9 @@ class _RecordRunsScreenState extends State<RecordRunsScreen> {
   List<ScanResult> _scanResults = [];
   bool _isScanning = false;
   List<String> _receivedMessages = [];
+
+  // device messaging
+
   late StreamSubscription<List<ScanResult>> _scanResultsSubscription;
   late StreamSubscription<bool> _isScanningSubscription;
   late StreamSubscription<List<int>> _notificationSubscription;
@@ -120,8 +123,9 @@ class _RecordRunsScreenState extends State<RecordRunsScreen> {
           await characteristic.setNotifyValue(true);
           _notificationSubscription = characteristic.value.listen((value) {
             String message = String.fromCharCodes(value);
+            String timestamp = DateTime.now().toString();
             setState(() {
-              _receivedMessages.add(message);
+              _receivedMessages.add('[$timestamp] $message');
             });
           });
           break;
@@ -138,6 +142,21 @@ class _RecordRunsScreenState extends State<RecordRunsScreen> {
           backgroundColor: Colors.green,
         ),
       );
+      device.requestMtu(50, predelay: 0).then((_) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('MTU size requested successfully'),
+            backgroundColor: Colors.green,
+          ),
+        );
+      }).catchError((e) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Request MTU Error: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      });
       _startListeningToNotifications(device);
     }).catchError((e) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -161,6 +180,8 @@ class _RecordRunsScreenState extends State<RecordRunsScreen> {
   }
 
 Widget buildReceivedMessages(BuildContext context) {
+    print("_receivedMessages");
+    print(_receivedMessages);
   return Column(
     children: _receivedMessages.map((message) => ListTile(
       title: SingleChildScrollView(
@@ -170,7 +191,7 @@ Widget buildReceivedMessages(BuildContext context) {
           style: TextStyle(color: Colors.white),
         ),
       ),
-      isThreeLine: true,
+      isThreeLine: false,
     )).toList(),
   );
 }
