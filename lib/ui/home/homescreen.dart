@@ -1,5 +1,6 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
+import 'package:p2prunningapp/ui/rundetails/GPSRunScreen.dart';
 import '../../services/ActivityRecognitionService.dart';
 import '../profile/StatsScreen.dart';
 import '../profile/profile.dart';
@@ -61,7 +62,7 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget build(BuildContext context) {
     final List<Widget> _pages = [
       RecentRunsScreen(),
-      RecordRunScreen(),
+      GPSRunScreen(),
       StatsScreen(),
       ProfileScreen(name: name, email: email, profileImageUrl: profileImageUrl),
     ];
