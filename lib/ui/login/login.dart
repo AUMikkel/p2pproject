@@ -7,6 +7,8 @@ import 'package:p2prunningapp/ui/register/register.dart';
 import 'package:p2prunningapp/ui/shared/UserSession.dart';
 import 'package:p2prunningapp/ui/home/homescreen.dart';
 import '../shared/UserSession.dart'; // Import UserSession class
+import 'package:audioplayers/audioplayers.dart';
+
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -19,6 +21,7 @@ class _LoginScreenState extends State<LoginScreen> {
   final _formKey = GlobalKey<FormState>();
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
+  final AudioPlayer audioPlayer = AudioPlayer();
 
   Future<void> _login() async {
     if (_formKey.currentState!.validate()) {

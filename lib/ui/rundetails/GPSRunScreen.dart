@@ -4,23 +4,33 @@ import 'package:flutter_activity_recognition/models/activity.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:location/location.dart';
+import 'package:audioplayers/audioplayers.dart';
 import '../../services/ActivityRecognitionService.dart';
 
 class GPSRunScreen extends StatefulWidget {
   @override
-  _RecordRunScreenState createState() => _RecordRunScreenState();
+  _GPSRunScreenState createState() => _GPSRunScreenState();
 }
 
-class _RecordRunScreenState extends State<GPSRunScreen> {
+class _GPSRunScreenState extends State<GPSRunScreen> {
   final Location _location = Location();
+  final AudioPlayer _audioPlayer = AudioPlayer(); // Initialize the audio player
   late final ActivityRecognitionService _activityService;
+
   bool _isRecording = false;
   bool _isLoadingLocation = true;
+
   ValueNotifier<List<LatLng>> _route = ValueNotifier<List<LatLng>>([]);
   ValueNotifier<LatLng?> _currentLocation = ValueNotifier<LatLng?>(null);
   ValueNotifier<String> _currentActivity = ValueNotifier<String>("Unknown");
+
   StreamSubscription<LocationData>? _locationSubscription;
   StreamSubscription<Activity>? _activitySubscription;
+
+  Stopwatch _stopwatch = Stopwatch(); // Track elapsed time
+  double _totalDistance = 0.0; // Track total distance in kilometers
+  double _paceThreshold = 7.0; // Threshold pace in minutes per kilometer
+
   bool _isDisposed = false;
 
   @override
@@ -46,6 +56,7 @@ class _RecordRunScreenState extends State<GPSRunScreen> {
     _route.dispose();
     _currentLocation.dispose();
     _currentActivity.dispose();
+    _stopwatch.stop();
     super.dispose();
   }
 
@@ -63,18 +74,49 @@ class _RecordRunScreenState extends State<GPSRunScreen> {
 
   void _toggleRecording() {
     if (_isRecording) {
+      // Stop recording
+
+      _audioPlayer.play(AssetSource('pacesound.wav'));
+
       _locationSubscription?.cancel();
+      _stopwatch.stop();
       setState(() => _isRecording = false);
     } else {
+      // Start recording
+      _stopwatch.start();
       _locationSubscription = _location.onLocationChanged.listen((locationData) {
         if (locationData.latitude != null && locationData.longitude != null) {
-          LatLng point = LatLng(locationData.latitude!, locationData.longitude!);
-          _currentLocation.value = point;
-          _route.value = [..._route.value, point];
+          LatLng newPoint = LatLng(locationData.latitude!, locationData.longitude!);
+          if (_route.value.isNotEmpty) {
+            _totalDistance += _calculateDistance(_route.value.last, newPoint);
+            _checkPaceAndPlaySound();
+          }
+          _currentLocation.value = newPoint;
+          _route.value = [..._route.value, newPoint];
         }
       });
       setState(() => _isRecording = true);
     }
+  }
+
+  double _calculateDistance(LatLng point1, LatLng point2) {
+    const Distance distance = Distance();
+    return distance.as(LengthUnit.Kilometer, point1, point2); // Distance in kilometers
+  }
+
+  void _checkPaceAndPlaySound() {
+    if (_totalDistance > 0) {
+      double elapsedMinutes = _stopwatch.elapsed.inSeconds / 60;
+      double pace = elapsedMinutes / _totalDistance; // Pace in minutes per kilometer
+
+      if (pace > _paceThreshold) {
+        _playSlowPaceAlert();
+      }
+    }
+  }
+
+  Future<void> _playSlowPaceAlert() async {
+    await _audioPlayer.play(AssetSource('sounds/coin.wav')); // Play alert sound
   }
 
   @override
@@ -134,7 +176,7 @@ class _RecordRunScreenState extends State<GPSRunScreen> {
                           width: 80,
                           height: 80,
                           point: currentLocation,
-                          child: Icon(
+                          child:Icon(
                             Icons.location_on,
                             color: Colors.red,
                             size: 40,
@@ -157,7 +199,7 @@ class _RecordRunScreenState extends State<GPSRunScreen> {
                   child: Padding(
                     padding: const EdgeInsets.all(8.0),
                     child: Text(
-                      'Current Activity: $activity',
+                      'Current Activity: $activity\nTotal Distance: ${_totalDistance.toStringAsFixed(2)} km',
                       style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
                     ),
                   ),
