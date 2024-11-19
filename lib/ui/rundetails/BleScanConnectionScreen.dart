@@ -220,6 +220,12 @@ class _BleScanConnectionScreenState extends State<BleScanConnectionScreen> {
               ..._buildSystemDeviceTiles(context),
               ..._buildScanResultTiles(context),
               buildReceivedMessages(context),
+              ElevatedButton(
+                onPressed: () async {
+                  await BleNotificationService().saveLogFileToExternalStorage();
+                },
+                child: Text('Save Log File'),
+              ),
             ],
           ),
         ),
