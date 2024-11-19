@@ -1,44 +1,33 @@
 import 'dart:async';
-
 import 'package:flutter/material.dart';
 import 'package:flutter_blue_plus/flutter_blue_plus.dart';
-import 'package:p2prunningapp/services/bleScan.dart';
-import 'package:p2prunningapp/services/bleDevice.dart';
-import 'package:p2prunningapp/services/bleService.dart';
-import 'package:p2prunningapp/utils/bleUtils.dart';
+import '../../services/BleNotificationService.dart';
 
-class RecordRunsScreen extends StatefulWidget {
-  const RecordRunsScreen({Key? key}) : super(key: key);
+class BleScanConnectionScreen extends StatefulWidget {
+  const BleScanConnectionScreen({Key? key}) : super(key: key);
   @override
-  State<RecordRunsScreen> createState() => _RecordRunsScreenState();
+  State<BleScanConnectionScreen> createState() => _BleScanConnectionScreenState();
 }
 
-class _RecordRunsScreenState extends State<RecordRunsScreen> {
+class _BleScanConnectionScreenState extends State<BleScanConnectionScreen> {
   List<BluetoothDevice> _systemDevices = [];
   List<ScanResult> _scanResults = [];
   bool _isScanning = false;
   List<String> _receivedMessages = [];
-
-  // device messaging
+  String _receivedMessagesLast = "Nothing recieved";
 
   late StreamSubscription<List<ScanResult>> _scanResultsSubscription;
   late StreamSubscription<bool> _isScanningSubscription;
-  late StreamSubscription<List<int>> _notificationSubscription;
-  //final BLEScan _bleScan = BLEScan();
-  //final BLEDevice _bleDevice = BLEDevice();
-  //final BLEService _bleService = BLEService();
 
   @override
   void initState() {
     super.initState();
-    //_bleScan.initialize();
     _scanResultsSubscription = FlutterBluePlus.scanResults.listen((results) {
       _scanResults = results;
       if (mounted) {
         setState(() {});
       }
     }, onError: (e) {
-      // Snack bar displaying scan errer and the errer e
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text('Scan Error: $e'),
@@ -57,16 +46,13 @@ class _RecordRunsScreenState extends State<RecordRunsScreen> {
 
   @override
   void dispose() {
-    //_bleScan.dispose();
     _scanResultsSubscription.cancel();
     _isScanningSubscription.cancel();
-    _notificationSubscription.cancel();
     super.dispose();
   }
 
   Future onScanPressed() async {
     try {
-      // `withServices` is required on iOS for privacy purposes, ignored on android.
       var withServices = [Guid("180f")]; // Battery Level Service
       _systemDevices = await FlutterBluePlus.systemDevices(withServices);
     } catch (e) {
@@ -83,7 +69,7 @@ class _RecordRunsScreenState extends State<RecordRunsScreen> {
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Start Scan Error:: $e'),
+          content: Text('Start Scan Error: $e'),
           backgroundColor: Colors.red,
         ),
       );
@@ -106,41 +92,24 @@ class _RecordRunsScreenState extends State<RecordRunsScreen> {
     }
   }
 
-  /*
   void onConnectPressed(BluetoothDevice device) {
-    device.connectAndUpdateStream().catchError((e) {
-      Snackbar.show(ABC.c, prettyException("Connect Error:", e), success: false);
-    });
-    MaterialPageRoute route = MaterialPageRoute(
-        builder: (context) => DeviceScreen(device: device), settings: RouteSettings(name: '/DeviceScreen'));
-    Navigator.of(context).push(route);
-  }*/
-  void _startListeningToNotifications(BluetoothDevice device) async {
-    List<BluetoothService> services = await device.discoverServices();
-    for (BluetoothService service in services) {
-      for (BluetoothCharacteristic characteristic in service.characteristics) {
-        if (characteristic.properties.notify) {
-          await characteristic.setNotifyValue(true);
-          _notificationSubscription = characteristic.value.listen((value) {
-            String message = String.fromCharCodes(value);
-            String timestamp = DateTime.now().toString();
-            setState(() {
-              _receivedMessages.add('[$timestamp] $message');
-            });
-          });
-          break;
-        }
-      }
-    }
-  }
-
-  void onConnectPressed(BluetoothDevice device) {
-    device.connectAndUpdateStream().then((_) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Connected to ${device.name}'),
-          backgroundColor: Colors.green,
-        ),
+    BleNotificationService().connectToDevice(device).then((_) {
+      showDialog(
+        context: context,
+        builder: (BuildContext context) {
+          return AlertDialog(
+            title: Text('Connected'),
+            content: Text('Connected to ${device.name}'),
+            actions: <Widget>[
+              TextButton(
+                child: Text('OK'),
+                onPressed: () {
+                  Navigator.of(context).pop();
+                },
+              ),
+            ],
+          );
+        },
       );
       device.requestMtu(50, predelay: 0).then((_) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -157,7 +126,6 @@ class _RecordRunsScreenState extends State<RecordRunsScreen> {
           ),
         );
       });
-      _startListeningToNotifications(device);
     }).catchError((e) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -179,22 +147,30 @@ class _RecordRunsScreenState extends State<RecordRunsScreen> {
     return Future.delayed(Duration(milliseconds: 500));
   }
 
-Widget buildReceivedMessages(BuildContext context) {
-    print("_receivedMessages");
-    print(_receivedMessages);
-  return Column(
-    children: _receivedMessages.map((message) => ListTile(
-      title: SingleChildScrollView(
-        scrollDirection: Axis.horizontal,
-        child: Text(
-          message,
-          style: TextStyle(color: Colors.white),
-        ),
-      ),
-      isThreeLine: false,
-    )).toList(),
-  );
-}
+  Widget buildReceivedMessages(BuildContext context) {
+    return StreamBuilder<String>(
+      stream: BleNotificationService().receivedMessagesStream,
+      builder: (context, snapshot) {
+        if (snapshot.hasData) {
+          _receivedMessages.add(snapshot.data!);
+          _receivedMessagesLast = snapshot.data!;
+          print('Received message: $_receivedMessagesLast');
+        }
+        return Column(
+          children: _receivedMessages.map((message) => ListTile(
+            title: SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: Text(
+                message,
+                style: TextStyle(color: Colors.white),
+              ),
+            ),
+            isThreeLine: false,
+          )).toList(),
+        );
+      },
+    );
+  }
 
   Widget buildScanButton(BuildContext context) {
     if (FlutterBluePlus.isScanningNow) {
@@ -233,7 +209,6 @@ Widget buildReceivedMessages(BuildContext context) {
   @override
   Widget build(BuildContext context) {
     return ScaffoldMessenger(
-      //key: SnackBar.snackBarKeyB,
       child: Scaffold(
         appBar: AppBar(
           title: const Text('Find Devices'),
@@ -252,61 +227,6 @@ Widget buildReceivedMessages(BuildContext context) {
       ),
     );
   }
-/*
-  void _startScan() async {
-    await _bleScan.startScan();
-    await Future.delayed(Duration(seconds: 15));
-    print(_bleScan.scanResults);
-    setState(() {});
-  }
-
-  void _connectToDevice(BluetoothDevice device) async {
-    try {
-      await _bleDevice.connectToDevice(device);
-      Navigator.of(context).pop(); // Close the popup after connecting
-    } catch (e) {
-      print('Connection Error: $e');
-    }
-  }
-*/
-/*  @override
-  Widget build(BuildContext context) {
-    return AlertDialog(
-      title: Text('Not Connected to Bluetooth Watch'),
-      content: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Text('Please scan for devices and connect to your Bluetooth watch.'),
-          SizedBox(height: 20),
-          _bleScan.isScanning
-              ? CircularProgressIndicator()
-              : ElevatedButton(
-            onPressed: _startScan,
-            child: Text('Scan for Devices'),
-          ),
-          SizedBox(height: 20),
-          _bleScan.scanResults.isEmpty
-              ? const Text('No devices found.')
-              : Column(
-            children: _bleScan.scanResults.map((result) {
-              return ListTile(
-                title: Text(result.device.name),
-                subtitle: Text(result.device.id.toString()),
-                onTap: () => _connectToDevice(result.device),
-              );
-            }).toList(),
-          ),
-        ],
-      ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.of(context).pop(),
-          child: Text('Close'),
-        ),
-      ],
-    );
-  }
- */
 }
 
 class SystemDeviceTile extends StatelessWidget {
@@ -361,12 +281,12 @@ class ScanResultTile extends StatelessWidget {
   Widget build(BuildContext context) {
     return ListTile(
       title: Text(result.device.name.isNotEmpty ? result.device.name : 'Unknown Device',
-      style: TextStyle(
-        color: result.device.name.isNotEmpty ? Colors.white : Colors.grey),
+        style: TextStyle(
+            color: result.device.name.isNotEmpty ? Colors.white : Colors.grey),
       ),
       subtitle: Text(result.device.id.toString(),
-      style: TextStyle(
-        color: result.device.name.isNotEmpty ? Colors.white : Colors.grey),
+        style: TextStyle(
+            color: result.device.name.isNotEmpty ? Colors.white : Colors.grey),
       ),
       trailing: IconButton(
         icon: Icon(Icons.bluetooth, color: Colors.lightBlue),

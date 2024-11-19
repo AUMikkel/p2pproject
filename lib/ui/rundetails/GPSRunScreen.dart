@@ -5,13 +5,16 @@ import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:location/location.dart';
 import '../../services/ActivityRecognitionService.dart';
+import '../../services/BleNotificationService.dart';
+import '../rundetails/BleScanConnectionScreen.dart';
+import 'package:flutter_blue_plus/flutter_blue_plus.dart';
 
 class GPSRunScreen extends StatefulWidget {
   @override
-  _RecordRunScreenState createState() => _RecordRunScreenState();
+  _GPSRunScreenState createState() => _GPSRunScreenState();
 }
 
-class _RecordRunScreenState extends State<GPSRunScreen> {
+class _GPSRunScreenState extends State<GPSRunScreen> {
   final Location _location = Location();
   late final ActivityRecognitionService _activityService;
   bool _isRecording = false;
@@ -22,6 +25,7 @@ class _RecordRunScreenState extends State<GPSRunScreen> {
   StreamSubscription<LocationData>? _locationSubscription;
   StreamSubscription<Activity>? _activitySubscription;
   bool _isDisposed = false;
+  bool _isBleConnected = false;
 
   @override
   void initState() {
@@ -35,6 +39,7 @@ class _RecordRunScreenState extends State<GPSRunScreen> {
       }
     });
 
+    _checkBleConnection();
     _getInitialLocation();
   }
 
@@ -49,6 +54,53 @@ class _RecordRunScreenState extends State<GPSRunScreen> {
     super.dispose();
   }
 
+  Future<void> _checkBleConnection() async {
+    // Implement your logic to check if the BLE device is connected
+    // For example, you can use a service or a method that returns the connection status
+    bool isConnected = await checkBleConnectionStatus();
+    setState(() {
+      _isBleConnected = isConnected;
+    });
+
+    if (!_isBleConnected) {
+      _showBleConnectionPrompt();
+    }
+  }
+
+  Future<bool> checkBleConnectionStatus() async {
+    List<BluetoothDevice> connectedDevices = await FlutterBluePlus.connectedDevices;
+    for (BluetoothDevice device in connectedDevices) {
+      if (device.name == 'M5UiFlow') {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  void _showBleConnectionPrompt() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text('Not Connected to Bluetooth Device',
+          style: TextStyle(color: Colors.white)),
+        content: Text('Please connect to your Bluetooth device to continue.',
+            style: TextStyle(color: Colors.white)),
+        actions: [
+          TextButton(
+            onPressed: () {
+              Navigator.of(context).pop();
+              Navigator.of(context).push(
+                MaterialPageRoute(builder: (context) => BleScanConnectionScreen()),
+              );
+            },
+            child: Text('Connect'),
+          ),
+        ],
+      ),
+    );
+  }
+
+
   Future<void> _getInitialLocation() async {
     if (await _location.requestPermission() == PermissionStatus.granted) {
       final locationData = await _location.getLocation();
@@ -61,11 +113,15 @@ class _RecordRunScreenState extends State<GPSRunScreen> {
     }
   }
 
-  void _toggleRecording() {
+  void _toggleRecording() async {
     if (_isRecording) {
       _locationSubscription?.cancel();
       setState(() => _isRecording = false);
     } else {
+      // Wait for the "Run started" message
+      await _waitForRunStartedMessage();
+
+      // Start logging location data
       _locationSubscription = _location.onLocationChanged.listen((locationData) {
         if (locationData.latitude != null && locationData.longitude != null) {
           LatLng point = LatLng(locationData.latitude!, locationData.longitude!);
@@ -73,8 +129,34 @@ class _RecordRunScreenState extends State<GPSRunScreen> {
           _route.value = [..._route.value, point];
         }
       });
+
+      // Listen for the "Run finished" message
+      BleNotificationService().receivedMessagesStream.listen((message) {
+        if (message.contains("Run finished")) {
+          _stopRecording();
+        }
+      });
+
+      // Start recording logic
       setState(() => _isRecording = true);
     }
+  }
+  
+  void _stopRecording() {
+    _locationSubscription?.cancel();
+    setState(() => _isRecording = false);
+  }
+
+  Future<void> _waitForRunStartedMessage() async {
+    Completer<void> completer = Completer<void>();
+    StreamSubscription<String>? subscription;
+
+    subscription = BleNotificationService().receivedMessagesStream.listen((message) {
+      if (message.contains("Run started")) {
+        completer.complete();
+        subscription?.cancel();
+      }
+    });
   }
 
   @override
