@@ -53,7 +53,7 @@ class BleNotificationService {
               final String message = String.fromCharCodes(value);
               switch (_syncState) {
                 case SyncState.WaitingForT1:
-                  await _handleFirstPhase(message, characteristic);
+                  await _handleFirstPhase(characteristic, message);
                   break;
                 case SyncState.WaitingForT4:
                   await _handleSecondPhase(message);
