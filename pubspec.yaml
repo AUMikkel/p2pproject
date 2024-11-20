@@ -48,6 +48,7 @@ dependencies:
   flutter_activity_recognition: ^4.0.0
   location: ^7.0.1
   audioplayers: ^6.1.0
+  http: ^1.2.2
 
 
 

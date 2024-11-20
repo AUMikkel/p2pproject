@@ -1,13 +1,15 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:http/http.dart' as http; // Add HTTP package for API calls
 import 'package:p2prunningapp/ui/home/homescreen.dart';
-import 'package:p2prunningapp/ui/profile/profile.dart';
+
+import '../shared/UserSession.dart';
 
 class RegistrationScreen extends StatefulWidget {
   const RegistrationScreen({super.key});
 
   @override
-
   _RegistrationScreenState createState() => _RegistrationScreenState();
 }
 
@@ -17,20 +19,72 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
 
-  void _register() {
-    if (_formKey.currentState!.validate()) {
-      // Perform registration action
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Registering...')),
-      );
+  bool _isLoading = false;
+  String? _errorMessage;
 
-      // Navigate to ProfileScreen with the entered data
-      Navigator.push(
-        context,
-        MaterialPageRoute(
-          builder: (context) => (HomeScreen()),
-        ),
-      );
+  Future<void> _register() async {
+    if (_formKey.currentState!.validate()) {
+      setState(() {
+        _isLoading = true;
+        _errorMessage = null;
+      });
+
+      final url = Uri.parse('https://app.dokkedalleth.dk/register.php');
+      final body = {
+        'username': _nameController.text, // Save the user's name
+        'email': _emailController.text,  // Save the user's email
+        'password': _passwordController.text,
+      };
+
+      try {
+        final response = await http.post(
+          url,
+          headers: {'Content-Type': 'application/json'},
+          body: jsonEncode(body),
+        );
+
+        if (response.statusCode == 200) {
+          final data = jsonDecode(response.body);
+
+          if (data['success']) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('Registration successful!')),
+            );
+
+            // Save the user's data locally
+            await UserSession().saveUserData(
+              _nameController.text,
+              _emailController.text,
+              'https://example.com/default-profile.png', // Replace with actual profile image URL
+            );
+
+            // Navigate to HomeScreen
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (context) => HomeScreen(),
+              ),
+            );
+          } else {
+            setState(() {
+              _errorMessage = data['error'] ?? 'Registration failed.';
+              print(data);
+            });
+          }
+        } else {
+          setState(() {
+            _errorMessage = 'Server error: ${response.statusCode}';
+          });
+        }
+      } catch (e) {
+        setState(() {
+          _errorMessage = 'Error: $e';
+        });
+      } finally {
+        setState(() {
+          _isLoading = false;
+        });
+      }
     }
   }
 
@@ -87,14 +141,28 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
                   if (value == null || value.isEmpty) {
                     return 'Please enter your password';
                   }
+                  if (value.length < 6) {
+                    return 'Password must be at least 6 characters.';
+                  }
                   return null;
                 },
               ),
               const SizedBox(height: 16.0),
-              ElevatedButton(
-                onPressed: _register,
-                child: const Text('Register'),
-              ),
+              if (_isLoading)
+                const CircularProgressIndicator()
+              else
+                ElevatedButton(
+                  onPressed: _register,
+                  child: const Text('Register'),
+                ),
+              if (_errorMessage != null)
+                Padding(
+                  padding: const EdgeInsets.only(top: 16.0),
+                  child: Text(
+                    _errorMessage!,
+                    style: const TextStyle(color: Colors.red),
+                  ),
+                ),
             ],
           ),
         ),

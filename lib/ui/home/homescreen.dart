@@ -45,11 +45,18 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Future<void> _loadUserData() async {
     final userData = await UserSession().getUserData();
+    print('Loaded user data: $userData'); // Debug log
+
     setState(() {
-      name = userData['name'];
+      name = userData['username']; // Ensure this matches your saved key
       email = userData['email'];
       profileImageUrl = userData['profileImageUrl'];
     });
+
+    // Check for null values
+    if (name == null || email == null || profileImageUrl == null) {
+      print('Error: One or more user data fields are null!');
+    }
   }
 
   void _onItemTapped(int index) {
@@ -64,7 +71,7 @@ class _HomeScreenState extends State<HomeScreen> {
       RecentRunsScreen(),
       GPSRunScreen(),
       StatsScreen(),
-      ProfileScreen(name: name, email: email, profileImageUrl: profileImageUrl),
+      ProfileScreen(username: name, email: email, profileImageUrl: profileImageUrl),
     ];
 
     final List<String> _titles = [
@@ -79,20 +86,9 @@ class _HomeScreenState extends State<HomeScreen> {
         automaticallyImplyLeading: false,
         title: Text(_titles[_selectedIndex]),
       ),
-      body: name == null || email == null || profileImageUrl == null
-          ? const Center(child: CircularProgressIndicator())
-          : Column(
-        children: [
-          Padding(
-            padding: const EdgeInsets.all(16.0),
-            child: Text(
-              'Current Activity: $_currentActivity',
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-            ),
-          ),
-          Expanded(child: _pages[_selectedIndex]),
-        ],
-      ),
+        body: name == null
+            ? const Center(child: CircularProgressIndicator())
+          : _pages[_selectedIndex], // Updated to remove Current Activity bar
       bottomNavigationBar: BottomNavigationBar(
         items: const <BottomNavigationBarItem>[
           BottomNavigationBarItem(icon: Icon(Icons.home), label: 'Home'),

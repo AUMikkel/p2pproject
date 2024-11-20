@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_activity_recognition/models/activity.dart';
 import 'package:flutter_map/flutter_map.dart';
@@ -6,6 +7,9 @@ import 'package:latlong2/latlong.dart';
 import 'package:location/location.dart';
 import 'package:audioplayers/audioplayers.dart';
 import '../../services/ActivityRecognitionService.dart';
+import '../../services/sendRunData.dart';
+import 'package:http/http.dart' as http;
+import '../shared/UserSession.dart';
 
 class GPSRunScreen extends StatefulWidget {
   @override
@@ -16,7 +20,7 @@ class _GPSRunScreenState extends State<GPSRunScreen> {
   final Location _location = Location();
   final AudioPlayer _audioPlayer = AudioPlayer(); // Initialize the audio player
   late final ActivityRecognitionService _activityService;
-
+  List<Map<String, dynamic>> _checkpoints = [];
   bool _isRecording = false;
   bool _isLoadingLocation = true;
 
@@ -33,6 +37,7 @@ class _GPSRunScreenState extends State<GPSRunScreen> {
 
   bool _isDisposed = false;
 
+  StreamSubscription<LocationData>? _continuousLocationSubscription;
   @override
   void initState() {
     super.initState();
@@ -44,7 +49,7 @@ class _GPSRunScreenState extends State<GPSRunScreen> {
         _currentActivity.value = activity.type.toString().split('.').last;
       }
     });
-
+    _startContinuousLocationUpdates();
     _getInitialLocation();
   }
 
@@ -57,7 +62,28 @@ class _GPSRunScreenState extends State<GPSRunScreen> {
     _currentLocation.dispose();
     _currentActivity.dispose();
     _stopwatch.stop();
+    _continuousLocationSubscription?.cancel();
     super.dispose();
+  }
+  Future<void> _startContinuousLocationUpdates() async {
+    // Ensure location permissions are granted
+    if (await _location.requestPermission() == PermissionStatus.granted) {
+      _continuousLocationSubscription = _location.onLocationChanged.listen(
+            (locationData) {
+          if (locationData.latitude != null && locationData.longitude != null) {
+            LatLng newLocation = LatLng(locationData.latitude!, locationData.longitude!);
+
+            // Update the current location
+            if (!_isRecording) {
+              // Only update the current location when not recording
+              setState(() {
+                _currentLocation.value = newLocation;
+              });
+            }
+          }
+        },
+      );
+    }
   }
 
   Future<void> _getInitialLocation() async {
@@ -72,23 +98,230 @@ class _GPSRunScreenState extends State<GPSRunScreen> {
     }
   }
 
-  void _toggleRecording() {
+  Future<List<Map<String, dynamic>>> _fetchGhostRoutes() async {
+    // Example API call to get routes
+    final response = await http.get(Uri.parse('https://app.dokkedalleth.dk/routes.php'));
+    if (response.statusCode == 200) {
+      final jsonData = jsonDecode(response.body); // Parse JSON response
+      if (jsonData['success'] == true && jsonData['routes'] is List) {
+        // Extract the "routes" list from the JSON response
+        print(response.body);
+        print('Fetched ${jsonData['routes'].length} ghost routes.');
+        return List<Map<String, dynamic>>.from(jsonData['routes']);
+      } else {
+        throw Exception('Invalid data format or no routes found.');
+      }
+    } else {
+      throw Exception('Failed to load ghost routes: ${response.statusCode}');
+    }
+  }
+
+  String? _selectedGhostRouteId;
+  Map<String, dynamic>? _selectedGhostData;
+
+  Future<void> _selectGhostRoute() async {
+    final routes = await _fetchGhostRoutes();
+    showModalBottomSheet(
+      context: context,
+      builder: (context) {
+        return ListView.builder(
+          itemCount: routes.length,
+          itemBuilder: (context, index) {
+            final route = routes[index];
+            return ListTile(
+              title: Text('Route ${route['id']} - ${route['total_distance']} m'),
+              subtitle: Text('By ${route['username']}'),
+            onTap: () {
+            print("Route ID type: ${route['id'].runtimeType}"); // Debug type
+            setState(() {
+            _selectedGhostRouteId = route['id']?.toString(); // Safely convert to String
+            _selectedGhostData = {
+              ...route,
+              'checkpoints': route['checkpoints'] ?? []
+            }; // Store selected route data
+            });
+            Navigator.pop(context);
+            },
+            );
+          },
+        );
+      },
+    );
+  }
+  String? _ghostProgressMessage;
+/*
+  void _compareWithGhost(LatLng userLocation, int userElapsedTime) {
+    if (_selectedGhostData == null) return;
+
+    final ghostCheckpoints = _selectedGhostData!['checkpoints'];
+    if (ghostCheckpoints == null) {
+      setState(() {
+        _ghostProgressMessage = 'This ghost route has no checkpoints.';
+      });
+      return;
+    }
+    for (var checkpoint in ghostCheckpoints) {
+      final checkpointLatLng = LatLng(checkpoint['lat'], checkpoint['lng']);
+      final ghostTime = checkpoint['time'];
+
+      final distanceToCheckpoint =
+      const Distance().as(LengthUnit.Meter, userLocation, checkpointLatLng);
+
+      if (distanceToCheckpoint < 25) {
+        final timeDifference = userElapsedTime - ghostTime;
+
+        setState(() {
+          if (timeDifference > 0) {
+            print('You are behind by $timeDifference seconds.');
+            _ghostProgressMessage = 'You are behind by $timeDifference seconds.';
+          } else {
+            print('You are ahead by $timeDifference seconds.');
+            _ghostProgressMessage =
+            'You are ahead by ${timeDifference.abs()} seconds.';
+          }
+        });
+        break;
+      }
+    }
+  }*/
+
+  int _currentGhostCheckpointIndex = 0; // Track the current checkpoint
+  bool _isRunCompleted = false; // Flag to indicate race completion
+
+  void _compareWithGhost(LatLng userLocation, int userElapsedTime) {
+    if (_selectedGhostData == null) return;
+
+    final ghostCheckpoints = _selectedGhostData!['checkpoints'];
+    if (ghostCheckpoints == null || ghostCheckpoints.isEmpty) {
+      setState(() {
+        _ghostProgressMessage = 'This ghost route has no checkpoints.';
+      });
+      return;
+    }
+
+    // Check if all checkpoints are completed
+    if (_currentGhostCheckpointIndex >= ghostCheckpoints.length) {
+      if (!_isRunCompleted) {
+        setState(() {
+          _ghostProgressMessage = 'Run completed! All checkpoints passed.';
+          _isRunCompleted = true; // Mark the run as completed
+          print('Run completed! All checkpoints passed.');
+        });
+      }
+      return;
+    }
+
+    final checkpoint = ghostCheckpoints[_currentGhostCheckpointIndex];
+    final checkpointLatLng = LatLng(checkpoint['lat'], checkpoint['lng']);
+    final ghostTime = checkpoint['time'];
+
+    final distanceToCheckpoint =
+    const Distance().as(LengthUnit.Meter, userLocation, checkpointLatLng);
+
+    if (distanceToCheckpoint < 10) {
+      final timeDifference = userElapsedTime - ghostTime;
+
+      setState(() {
+        if (timeDifference > 0) {
+          print('You are behind by $timeDifference seconds.');
+          _ghostProgressMessage = 'You are behind by $timeDifference seconds.';
+        } else {
+          print('You are ahead by ${timeDifference.abs()} seconds.');
+          _ghostProgressMessage =
+          'You are ahead by ${timeDifference.abs()} seconds.';
+        }
+      });
+
+      // Move to the next checkpoint
+      _currentGhostCheckpointIndex++;
+    }
+  }
+
+  void resetRecordingState() {
+    setState(() {
+      _isRecording = false; // Stop recording
+      _route.value = []; // Clear the recorded route
+      _checkpoints = []; // Clear checkpoints
+      _totalDistance = 0.0; // Reset total distance
+      _currentGhostCheckpointIndex = 0; // Reset ghost checkpoint index
+      _isRunCompleted = false; // Reset completion status
+      _ghostProgressMessage = null; // Clear ghost progress message
+      _selectedGhostRouteId = null; // Clear ghost route selection
+      _selectedGhostData = null; // Clear ghost data
+    });
+  }
+
+  Future<void> _toggleRecording() async {
     if (_isRecording) {
       // Stop recording
-
       _audioPlayer.play(AssetSource('pacesound.wav'));
 
       _locationSubscription?.cancel();
       _stopwatch.stop();
       setState(() => _isRecording = false);
+
+      // Save run data or send it to the server
+      final routeData = _route.value.map((point) {
+        return {"lat": point.latitude, "lng": point.longitude};
+      }).toList();
+
+      final imuData = {}; // Replace with actual IMU data if collected
+      final userSession = UserSession();
+      final userData = await userSession.getUserData();
+      print('Sending run data:');
+      print({
+        'username': userData['username'], // Replace with actual user ID
+        'start_time': DateTime.now()
+            .subtract(Duration(seconds: _stopwatch.elapsed.inSeconds))
+            .toIso8601String(),
+        'end_time': DateTime.now().toIso8601String(),
+        'total_distance': _totalDistance,
+        'activity_type': _currentActivity.value,
+        'checkpoints': _checkpoints,
+      });
+      print('User data: $userData');
+      String? username = userData['username'];// Debug log
+      sendRunData(
+        username: username, // Replace with actual user ID
+        startTime: DateTime.now().subtract(Duration(seconds: _stopwatch.elapsed.inSeconds)),
+        endTime: DateTime.now(),
+        totalDistance: _totalDistance,
+        activityType: _currentActivity.value,
+        route: routeData,
+        imuData: imuData,
+        checkpoints: _checkpoints,
+      );
+      resetRecordingState();
     } else {
       // Start recording
       _stopwatch.start();
       _locationSubscription = _location.onLocationChanged.listen((locationData) {
         if (locationData.latitude != null && locationData.longitude != null) {
+
           LatLng newPoint = LatLng(locationData.latitude!, locationData.longitude!);
           if (_route.value.isNotEmpty) {
+            double distanceIncrement = _calculateDistance(_route.value.last, newPoint);
+
+            // Update total distance and UI
+            setState(() {
+              _totalDistance += distanceIncrement; // Increment total distance
+            });
+            if (_checkpoints.isEmpty || _calculateDistance(LatLng(_checkpoints.last['lat'], _checkpoints.last['lng'],),
+                    newPoint) >
+                    30) { // 30 meter
+              _checkpoints.add({
+                'lat': newPoint.latitude,
+                'lng': newPoint.longitude,
+                'time': _stopwatch.elapsed.inSeconds,
+              });
+            }
             _totalDistance += _calculateDistance(_route.value.last, newPoint);
+
+            // Compare with ghost at each point
+            if (_selectedGhostData != null) {
+              print('Comparing with ghost...');
+              _compareWithGhost(newPoint, _stopwatch.elapsed.inSeconds);
+            }
             _checkPaceAndPlaySound();
           }
           _currentLocation.value = newPoint;
@@ -101,7 +334,7 @@ class _GPSRunScreenState extends State<GPSRunScreen> {
 
   double _calculateDistance(LatLng point1, LatLng point2) {
     const Distance distance = Distance();
-    return distance.as(LengthUnit.Kilometer, point1, point2); // Distance in kilometers
+    return distance.as(LengthUnit.Meter, point1, point2); // Distance in meters
   }
 
   void _checkPaceAndPlaySound() {
@@ -122,9 +355,6 @@ class _GPSRunScreenState extends State<GPSRunScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: Text('Record a New Run'),
-      ),
       body: Stack(
         children: [
           if (_isLoadingLocation)
@@ -170,13 +400,26 @@ class _GPSRunScreenState extends State<GPSRunScreen> {
                         );
                       },
                     ),
+                    if (_selectedGhostData != null)
+                      PolylineLayer(
+                        polylines: [
+                          Polyline(
+                            points: _selectedGhostData!['route']
+                                .map<LatLng>((point) =>
+                                LatLng(point['lat'], point['lng']))
+                                .toList(),
+                            strokeWidth: 4,
+                            color: Colors.red,
+                          ),
+                        ],
+                      ),
                     MarkerLayer(
                       markers: [
                         Marker(
                           width: 80,
                           height: 80,
                           point: currentLocation,
-                          child:Icon(
+                          child: Icon(
                             Icons.location_on,
                             color: Colors.red,
                             size: 40,
@@ -192,19 +435,45 @@ class _GPSRunScreenState extends State<GPSRunScreen> {
             top: 16,
             left: 16,
             right: 16,
-            child: ValueListenableBuilder<String>(
-              valueListenable: _currentActivity,
-              builder: (context, activity, _) {
-                return Card(
-                  child: Padding(
-                    padding: const EdgeInsets.all(8.0),
-                    child: Text(
-                      'Current Activity: $activity\nTotal Distance: ${_totalDistance.toStringAsFixed(2)} km',
-                      style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+            child: Column(
+              children: [
+                ValueListenableBuilder<String>(
+                  valueListenable: _currentActivity,
+                  builder: (context, activity, _) {
+                    return Card(
+                      child: Padding(
+                        padding: const EdgeInsets.all(8.0),
+                        child: Text(
+                          'Current Activity: $activity\nTotal Distance: ${_totalDistance.toStringAsFixed(2)} m',
+                          style: TextStyle(
+                              fontSize: 16, fontWeight: FontWeight.bold,color: Colors.red),
+                        ),
+                      ),
+                    );
+                  },
+                ),
+                const SizedBox(height: 8),
+                ElevatedButton(
+                  onPressed: _selectGhostRoute,
+                  child: Text(
+                    _selectedGhostData != null
+                        ? 'Racing Against Route: ${_selectedGhostData!['id'].toString()}' // Convert to String
+                        : 'Select Ghost Route',
+                  ),
+                ),
+                if (_selectedGhostData != null)
+                  Card(
+                    child: Padding(
+                      padding: const EdgeInsets.all(8.0),
+                      child: Text(
+                        _ghostProgressMessage ??
+                            'Start racing to compare with the ghost!',
+                        style: TextStyle(
+                            fontSize: 16, fontWeight: FontWeight.bold,color: Colors.red),
+                      ),
                     ),
                   ),
-                );
-              },
+              ],
             ),
           ),
           Positioned(
