@@ -8,6 +8,8 @@ import 'package:p2prunningapp/services/bleDevice.dart';
 import 'package:p2prunningapp/services/bleService.dart';
 import 'package:permission_handler/permission_handler.dart';
 
+enum SyncState { WaitingForT1, WaitingForT4 }
+
 class BleNotificationService {
   static final BleNotificationService _instance = BleNotificationService._internal();
   factory BleNotificationService() => _instance;
@@ -16,7 +18,7 @@ class BleNotificationService {
   final List<String> _imuDataMessages = [];
   final List<String> _runControlMessages = [];
   StreamSubscription<List<int>>? _imuDataSubscription;
-  StreamSubscription<List<int>>? _runControlSubscription;
+  late StreamSubscription<List<int>>? _runControlSubscription;
 
   List<String> get imuDataMessages => _imuDataMessages;
   List<String> get runControlMessages => _runControlMessages;
@@ -25,51 +27,121 @@ class BleNotificationService {
   final StreamController<String> _receivedMessagesController = StreamController<String>.broadcast();
   Stream<String> get receivedMessagesStream => _receivedMessagesController.stream;
 
+  final List<int> _clockSyncList = [];
+  SyncState _syncState = SyncState.WaitingForT1;
+  bool _isProcessing = false; // Prevent overlapping sync cycles
+
   Future<void> connectToDevice(BluetoothDevice device) async {
     await device.connectAndUpdateStream();
     _connectedDevice = device;
     startListeningToNotifications(device);
   }
 
-  void startListeningToNotifications(BluetoothDevice device) async {
+  Future<void> startListeningToNotifications(BluetoothDevice device) async {
     List<BluetoothService> services = await device.discoverServices();
     for (BluetoothService service in services) {
       for (BluetoothCharacteristic characteristic in service.characteristics) {
-        if (characteristic.properties.notify) {
-          if (characteristic.uuid.toString().toUpperCase() == "AE4B02CC-DF79-6EF4-51D8-36EB0E0B0F13") {
-            // IMU data characteristic
-            await characteristic.setNotifyValue(true);
-            _imuDataSubscription = characteristic.value.listen((value) async {
-              int receivedTime = int.parse(String.fromCharCodes(value));
-              int timestamp = DateTime.now().millisecondsSinceEpoch;
-              String message = 'Mobile Timestamp: [$timestamp], Ble Timestamp: $receivedTime';
-              _imuDataMessages.add(message);
-              _receivedMessagesController.add(message);
-              await _logData(message);
-            });
-          } else if (characteristic.uuid.toString().toUpperCase() == "AE4B02CC-DF79-6EF4-51D8-36EB0E0B0F14") {
-            // Start/stop run characteristic
-            await characteristic.setNotifyValue(true);
-            _runControlSubscription = characteristic.value.listen((value) {
-              String runControlMessage = String.fromCharCodes(value);
-              String timestamp = DateTime.now().toString();
-              String message = '[$timestamp] $runControlMessage';
-              _runControlMessages.add('[$timestamp] $runControlMessage');
-              _receivedMessagesController.add(message);
-            });
-          }
+        if (characteristic.properties.notify &&
+            characteristic.uuid.toString().toUpperCase() == "AE4B02CC-DF79-6EF4-51D8-36EB0E0B0F14") {
+          await characteristic.setNotifyValue(true);
+
+          _runControlSubscription = characteristic.value.listen((value) async {
+            if (_isProcessing) return; // Avoid overlapping sync processes
+            _isProcessing = true;
+
+            try {
+              final String message = String.fromCharCodes(value);
+              switch (_syncState) {
+                case SyncState.WaitingForT1:
+                  await _handleFirstPhase(message, characteristic);
+                  break;
+                case SyncState.WaitingForT4:
+                  await _handleSecondPhase(message);
+                  break;
+              }
+            } catch (e) {
+              print('Error during synchronization: $e');
+            } finally {
+              _isProcessing = false;
+            }
+          });
         }
       }
     }
   }
 
-  Future<void> saveLogFileToExternalStorage() async {
+  Future<void> _handleFirstPhase(BluetoothCharacteristic characteristic, String message) async {
+    try {
+      // Parse T1 from the BLE message
+      final int T1 = int.parse(message);
+      final int T2 = DateTime.now().microsecondsSinceEpoch;
+
+      print('T1: $T1');
+      print('T2: $T2');
+
+      // Take T3 just before sending the value
+      final int T3 = DateTime.now().microsecondsSinceEpoch;
+      try {
+        await characteristic.write(T3.toString().codeUnits);
+        print('T3: $T3');
+        print('Successfully sent T3 to BLE device');
+
+        // Save T1, T2, T3 for later use
+        _clockSyncList.clear();
+        _clockSyncList.addAll([T1, T2, T3]);
+
+        // Proceed to the next state
+        _syncState = SyncState.WaitingForT4;
+      } catch (e) {
+        print('Failed to send T3: $e');
+        _resetSynchronization(); // Reset the synchronization process
+      }
+    } catch (e) {
+      print('Error in synchronization: $e');
+      _resetSynchronization(); // Reset state on unexpected error
+    }
+  }
+
+  void _resetSynchronization() {
+    _syncState = SyncState.WaitingForT1; // Reset state machine
+    _clockSyncList.clear(); // Clear any partial data
+    print('Synchronization process reset.');
+  }
+
+
+  Future<void> _handleSecondPhase(String message) async {
+    // Parse T4 from the BLE message
+    final int T4 = int.parse(message);
+    print('T4: $T4');
+
+    // Retrieve T1, T2, T3 from the list
+    final int T1 = _clockSyncList[0];
+    final int T2 = _clockSyncList[1];
+    final int T3 = _clockSyncList[2];
+
+    // Calculate offset (Δ) and delay (d)
+    final double delta = ((T2 - T1) - (T4 - T3)) / 2.0;
+    final double delay = ((T2 - T1) + (T4 - T3)) / 2.0;
+
+    print('Clock Offset (Δ): $delta µs');
+    print('Propagation Delay (d): $delay µs');
+
+    // Log the synchronization data
+    final String logEntry = '$T1, $T2, $T3, $T4, Δ: $delta, d: $delay';
+    await _logData(logEntry, 'ble_delay_offset_exp');
+
+    // Reset state for the next synchronization cycle
+    _syncState = SyncState.WaitingForT1;
+    _clockSyncList.clear();
+  }
+
+  Future<void> saveLogFileToExternalStorage(String fileName) async {
     try {
       // Request storage permissions
       if (await Permission.storage.request().isGranted) {
         final directory = await getExternalStorageDirectory();
-        final file = File('${directory!.path}/ble_delay_exp.txt');
-        final logFile = File('${(await getApplicationDocumentsDirectory()).path}/ble_delay_exp.txt');
+        final file = File('${directory!.path}/${fileName}.txt');
+        final logFile = File('${(await getApplicationDocumentsDirectory()).path}/${fileName}.txt');
 
         if (await logFile.exists()) {
           await file.writeAsBytes(await logFile.readAsBytes());
@@ -85,9 +157,9 @@ class BleNotificationService {
     }
   }
 
-  Future<void> _logData(String message) async {
+  Future<void> _logData(String message, String fileName) async {
     final directory = await getApplicationDocumentsDirectory();
-    final file = File('${directory.path}/ble_delay_exp.txt');
+    final file = File('${directory.path}/${fileName}.txt');
     await file.writeAsString('$message\n', mode: FileMode.append);
   }
 
