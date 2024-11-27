@@ -222,7 +222,7 @@ class _BleScanConnectionScreenState extends State<BleScanConnectionScreen> {
               buildReceivedMessages(context),
               ElevatedButton(
                 onPressed: () async {
-                  await BleNotificationService().saveLogFileToExternalStorage('ble_delay_offset_exp');
+                  await BleNotificationService().saveLogFileToExternalStorage('ble_delay_offset_exp2');
                 },
                 child: Text('Save Log File'),
               ),

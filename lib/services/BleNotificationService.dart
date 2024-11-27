@@ -120,15 +120,15 @@ class BleNotificationService {
     final int T3 = _clockSyncList[2];
 
     // Calculate offset (Δ) and delay (d)
-    final double delta = ((T2 - T1) - (T4 - T3)) / 2.0;
-    final double delay = ((T2 - T1) + (T4 - T3)) / 2.0;
+    final double delta = ((T2*1000 - T1) - (T4-1000000 - T3*1000)) / 2.0;
+    final double delay = ((T2*1000 - T1) + (T4-1000000 - T3*1000)) / 2.0;
 
     print('Clock Offset (Δ): $delta µs');
     print('Propagation Delay (d): $delay µs');
 
     // Log the synchronization data
     final String logEntry = '$T1, $T2, $T3, $T4, Δ: $delta, d: $delay';
-    await _logData(logEntry, 'ble_delay_offset_exp');
+    await _logData(logEntry, 'ble_delay_offset_exp2');
 
     // Reset state for the next synchronization cycle
     _syncState = SyncState.WaitingForT1;
