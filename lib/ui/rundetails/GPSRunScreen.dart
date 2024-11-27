@@ -225,10 +225,12 @@ class _GPSRunScreenState extends State<GPSRunScreen> {
         if (timeDifference > 0) {
           print('You are behind by $timeDifference seconds.');
           _ghostProgressMessage = 'You are behind by $timeDifference seconds.';
+          _audioPlayer.play(AssetSource('behind.wav'));
         } else {
           print('You are ahead by ${timeDifference.abs()} seconds.');
           _ghostProgressMessage =
           'You are ahead by ${timeDifference.abs()} seconds.';
+          _audioPlayer.play(AssetSource('pacesound.wav'));
         }
       });
 
@@ -254,7 +256,7 @@ class _GPSRunScreenState extends State<GPSRunScreen> {
   Future<void> _toggleRecording() async {
     if (_isRecording) {
       // Stop recording
-      _audioPlayer.play(AssetSource('pacesound.wav'));
+
 
       _locationSubscription?.cancel();
       _stopwatch.stop();
@@ -349,7 +351,7 @@ class _GPSRunScreenState extends State<GPSRunScreen> {
   }
 
   Future<void> _playSlowPaceAlert() async {
-    await _audioPlayer.play(AssetSource('sounds/coin.wav')); // Play alert sound
+    await _audioPlayer.play(AssetSource('pacesound.wav')); // Play alert sound
   }
 
   @override

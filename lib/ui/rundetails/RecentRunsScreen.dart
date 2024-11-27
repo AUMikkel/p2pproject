@@ -86,7 +86,7 @@ class _RecentRunsScreenState extends State<RecentRunsScreen> {
       }
 
       return {
-        'date': run['id'], // Replace with a formatted date if available
+        'date': run['date'], // Replace with a formatted date if available
         'distance': '${totalDistanceInKm.toStringAsFixed(2)} km',
         'time': _formatTime(totalTimeInSeconds),
         'pace': pace,
