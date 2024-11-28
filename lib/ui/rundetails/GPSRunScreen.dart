@@ -13,6 +13,7 @@ import 'package:flutter_blue_plus/flutter_blue_plus.dart';
 import '../../services/sendRunData.dart';
 import 'package:http/http.dart' as http;
 import '../shared/UserSession.dart';
+import '../../sensors/IMUReader.dart';
 
 class GPSRunScreen extends StatefulWidget {
   @override
@@ -20,6 +21,7 @@ class GPSRunScreen extends StatefulWidget {
 }
 
 class _GPSRunScreenState extends State<GPSRunScreen> {
+  final IMUReader imuReader = IMUReader();
   final Location _location = Location();
   final AudioPlayer _audioPlayer = AudioPlayer(); // Initialize the audio player
   late final ActivityRecognitionService _activityService;
@@ -33,6 +35,9 @@ class _GPSRunScreenState extends State<GPSRunScreen> {
 
   StreamSubscription<LocationData>? _locationSubscription;
   StreamSubscription<Activity>? _activitySubscription;
+  StreamSubscription<List<double>>? _accelerometerSubscription;
+  StreamSubscription<List<double>>? _gyroscopeSubscription;
+  StreamSubscription<List<double>>? _magnetometerSubscription;
 
   Stopwatch _stopwatch = Stopwatch(); // Track elapsed time
   double _totalDistance = 0.0; // Track total distance in kilometers
@@ -40,6 +45,9 @@ class _GPSRunScreenState extends State<GPSRunScreen> {
 
   bool _isDisposed = false;
   bool _isBleConnected = false;
+
+  // Text for the button at then buttom of the screen
+  String _buttonText = 'Start Run';
 
   StreamSubscription<LocationData>? _continuousLocationSubscription;
   @override
@@ -57,6 +65,20 @@ class _GPSRunScreenState extends State<GPSRunScreen> {
     _checkBleConnection();
     _startContinuousLocationUpdates();
     _getInitialLocation();
+
+    // Listen to IMU data streams
+    _accelerometerSubscription = imuReader.accelerometerStream.listen((data) {
+      // Process accelerometer data
+      print('Accelerometer: $data');
+    });
+    _gyroscopeSubscription = imuReader.gyroscopeStream.listen((data) {
+      // Process gyroscope data
+      print('Gyroscope: $data');
+    });
+    _magnetometerSubscription = imuReader.magnetometerStream.listen((data) {
+      // Process magnetometer data
+      print('Magnetometer: $data');
+    });
   }
 
   @override
@@ -64,6 +86,10 @@ class _GPSRunScreenState extends State<GPSRunScreen> {
     _isDisposed = true;
     _locationSubscription?.cancel();
     _activitySubscription?.cancel();
+    _accelerometerSubscription?.cancel();
+    _gyroscopeSubscription?.cancel();
+    _magnetometerSubscription?.cancel();
+    imuReader.dispose();
     _route.dispose();
     _currentLocation.dispose();
     _currentActivity.dispose();
@@ -119,9 +145,9 @@ class _GPSRunScreenState extends State<GPSRunScreen> {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: Text('Not Connected to Bluetooth Device',
+        title: const Text('Not Connected to Bluetooth Device',
           style: TextStyle(color: Colors.white)),
-        content: Text('Please connect to your Bluetooth device to continue.',
+        content: const Text('Please connect to your Bluetooth device to continue.',
             style: TextStyle(color: Colors.white)),
         actions: [
           TextButton(
@@ -309,20 +335,87 @@ class _GPSRunScreenState extends State<GPSRunScreen> {
   Future<void> _toggleRecording() async {
     if (_isRecording) {
       // Stop recording
+      _stopRecording();
+    } else {
+      // Start recording
+      _startRecording();
+    }
+  }
 
+  Future<void> _startRecording() async {
+    // Wait for the "Run started" message
+    await _waitForRunStartedMessage();
 
-      _locationSubscription?.cancel();
-      _stopwatch.stop();
-      setState(() => _isRecording = false);
+    // Start logging location data
+    _stopwatch.start();
+    _locationSubscription = _location.onLocationChanged.listen((locationData) {
+      if (locationData.latitude != null && locationData.longitude != null) {
+        LatLng newPoint = LatLng(locationData.latitude!, locationData.longitude!);
+        if (_route.value.isNotEmpty) {
+          double distanceIncrement = _calculateDistance(_route.value.last, newPoint);
 
-      // Save run data or send it to the server
-      final routeData = _route.value.map((point) {
-        return {"lat": point.latitude, "lng": point.longitude};
-      }).toList();
+          // Update total distance and UI
+          setState(() {
+            _totalDistance += distanceIncrement; // Increment total distance
+          });
+          if (_checkpoints.isEmpty || _calculateDistance(LatLng(_checkpoints.last['lat'], _checkpoints.last['lng']),
+              newPoint) > 30) { // 30 meter
+            _checkpoints.add({
+              'lat': newPoint.latitude,
+              'lng': newPoint.longitude,
+              'time': _stopwatch.elapsed.inSeconds,
+            });
+          }
+          _totalDistance += _calculateDistance(_route.value.last, newPoint);
 
-      final imuData = {}; // Replace with actual IMU data if collected
-      final userSession = UserSession();
-      final userData = await userSession.getUserData();
+          // Compare with ghost at each point
+          if (_selectedGhostData != null) {
+            print('Comparing with ghost...');
+            _compareWithGhost(newPoint, _stopwatch.elapsed.inSeconds);
+          }
+          _checkPaceAndPlaySound();
+        }
+        _currentLocation.value = newPoint;
+        _route.value = [..._route.value, newPoint];
+      }
+    });
+
+    // Listen for the "Run finished" message
+    BleNotificationService().receivedMessagesStream.listen((message) {
+      if (message.contains("Run finished")) {
+        _stopRecording();
+      }
+    });
+
+    // Start listening to IMU data
+    await BleNotificationService().startListeningToIMUData();
+
+    // Start recording logic
+    setState(() {
+      _isRecording = true;
+      _buttonText = 'Stop Run';
+    });
+  }
+
+  void _stopRecording() {
+    _locationSubscription?.cancel();
+    _stopwatch.stop();
+    setState(() {
+      _isRecording = false;
+      _buttonText = 'Start Run';
+    });
+
+    // Stop listening to IMU data
+    BleNotificationService().stopListeningToIMUData();
+
+    // Save run data or send it to the server
+    final routeData = _route.value.map((point) {
+      return {"lat": point.latitude, "lng": point.longitude};
+    }).toList();
+
+    final imuData = {}; // Replace with actual IMU data if collected
+    final userSession = UserSession();
+    userSession.getUserData().then((userData) {
       print('Sending run data:');
       print({
         'username': userData['username'], // Replace with actual user ID
@@ -335,7 +428,7 @@ class _GPSRunScreenState extends State<GPSRunScreen> {
         'checkpoints': _checkpoints,
       });
       print('User data: $userData');
-      String? username = userData['username'];// Debug log
+      String? username = userData['username']; // Debug log
       sendRunData(
         username: username, // Replace with actual user ID
         startTime: DateTime.now().subtract(Duration(seconds: _stopwatch.elapsed.inSeconds)),
@@ -347,62 +440,7 @@ class _GPSRunScreenState extends State<GPSRunScreen> {
         checkpoints: _checkpoints,
       );
       resetRecordingState();
-    } else {
-      // Wait for the "Run started" message
-      await _waitForRunStartedMessage();
-
-      // Start logging location data
-      // Start recording
-      _stopwatch.start();
-      _locationSubscription = _location.onLocationChanged.listen((locationData) {
-        if (locationData.latitude != null && locationData.longitude != null) {
-
-          LatLng newPoint = LatLng(locationData.latitude!, locationData.longitude!);
-          if (_route.value.isNotEmpty) {
-            double distanceIncrement = _calculateDistance(_route.value.last, newPoint);
-
-            // Update total distance and UI
-            setState(() {
-              _totalDistance += distanceIncrement; // Increment total distance
-            });
-            if (_checkpoints.isEmpty || _calculateDistance(LatLng(_checkpoints.last['lat'], _checkpoints.last['lng'],),
-                    newPoint) >
-                    30) { // 30 meter
-              _checkpoints.add({
-                'lat': newPoint.latitude,
-                'lng': newPoint.longitude,
-                'time': _stopwatch.elapsed.inSeconds,
-              });
-            }
-            _totalDistance += _calculateDistance(_route.value.last, newPoint);
-
-            // Compare with ghost at each point
-            if (_selectedGhostData != null) {
-              print('Comparing with ghost...');
-              _compareWithGhost(newPoint, _stopwatch.elapsed.inSeconds);
-            }
-            _checkPaceAndPlaySound();
-          }
-          _currentLocation.value = newPoint;
-          _route.value = [..._route.value, newPoint];
-        }
-      });
-
-      // Listen for the "Run finished" message
-      BleNotificationService().receivedMessagesStream.listen((message) {
-        if (message.contains("Run finished")) {
-          _stopRecording();
-        }
-      });
-
-      // Start recording logic
-      setState(() => _isRecording = true);
-    }
-  }
-
-  void _stopRecording() {
-    _locationSubscription?.cancel();
-    setState(() => _isRecording = false);
+    });
   }
 
   Future<void> _waitForRunStartedMessage() async {
@@ -415,6 +453,7 @@ class _GPSRunScreenState extends State<GPSRunScreen> {
         subscription?.cancel();
       }
     });
+    await completer.future; // Wait for the completer to complete
   }
 
   double _calculateDistance(LatLng point1, LatLng point2) {
@@ -570,7 +609,7 @@ class _GPSRunScreenState extends State<GPSRunScreen> {
               style: ElevatedButton.styleFrom(
                 backgroundColor: _isRecording ? Colors.red : Colors.green,
               ),
-              child: Text(_isRecording ? 'Stop Recording' : 'Start Recording'),
+              child: Text(_isRecording ? 'Stop Run' : 'Start Recording'),
             ),
           ),
         ],

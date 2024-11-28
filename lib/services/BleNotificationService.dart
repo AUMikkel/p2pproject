@@ -17,6 +17,8 @@ class BleNotificationService {
 
   final List<String> _imuDataMessages = [];
   final List<String> _runControlMessages = [];
+
+
   StreamSubscription<List<int>>? _imuDataSubscription;
   late StreamSubscription<List<int>>? _runControlSubscription;
 
@@ -27,6 +29,9 @@ class BleNotificationService {
   final StreamController<String> _receivedMessagesController = StreamController<String>.broadcast();
   Stream<String> get receivedMessagesStream => _receivedMessagesController.stream;
 
+  final StreamController<String> _imuDataController = StreamController<String>.broadcast();
+  Stream<String> get imuDataStream => _imuDataController.stream;
+
   final List<int> _clockSyncList = [];
   SyncState _syncState = SyncState.WaitingForT1;
   bool _isProcessing = false; // Prevent overlapping sync cycles
@@ -36,7 +41,46 @@ class BleNotificationService {
     _connectedDevice = device;
     startListeningToNotifications(device);
   }
+  Future<void> startListeningToNotifications(BluetoothDevice device) async {
+    final List<BluetoothService> services = await device.discoverServices();
+    for (BluetoothService service in services) {
+      for (BluetoothCharacteristic characteristic in service.characteristics) {
+        if (characteristic.properties.notify &&
+            characteristic.uuid.toString().toUpperCase() == "AE4B02CC-DF79-6EF4-51D8-36EB0E0B0F14") {
+          await characteristic.setNotifyValue(true);
 
+          _runControlSubscription = characteristic.value.listen((value) async {
+            final String message = String.fromCharCodes(value);
+            _receivedMessagesController.add(message); // Add message to the stream
+          });
+        }
+      }
+    }
+  }
+
+  Future<void> startListeningToIMUData() async {
+    if (_connectedDevice == null) {
+      print('No connected device.');
+      return;
+    }
+
+    final List<BluetoothService> services = await _connectedDevice!.discoverServices();
+    for (BluetoothService service in services) {
+      for (BluetoothCharacteristic characteristic in service.characteristics) {
+        if (characteristic.properties.notify &&
+            characteristic.uuid.toString().toUpperCase() == "IMU_CHARACTERISTIC_UUID") {
+          await characteristic.setNotifyValue(true);
+
+          _imuDataSubscription = characteristic.value.listen((value) async {
+            final String message = String.fromCharCodes(value);
+            _imuDataController.add(message); // Add IMU data to the stream
+          });
+        }
+      }
+    }
+  }
+
+  /*
   Future<void> startListeningToNotifications(BluetoothDevice device) async {
     List<BluetoothService> services = await device.discoverServices();
     for (BluetoothService service in services) {
@@ -69,7 +113,7 @@ class BleNotificationService {
       }
     }
   }
-
+*/
   Future<void> _handleFirstPhase(BluetoothCharacteristic characteristic, String message) async {
     try {
       // Parse T1 from the BLE message
@@ -108,7 +152,6 @@ class BleNotificationService {
     print('Synchronization process reset.');
   }
 
-
   Future<void> _handleSecondPhase(String message) async {
     // Parse T4 from the BLE message
     final int T4 = int.parse(message);
@@ -128,7 +171,7 @@ class BleNotificationService {
 
     // Log the synchronization data
     final String logEntry = '$T1, $T2, $T3, $T4, Δ: $delta, d: $delay';
-    await _logData(logEntry, 'ble_delay_offset_exp6');
+    await _logData(logEntry, 'ble_delay_offset_exp8');
 
     // Reset state for the next synchronization cycle
     _syncState = SyncState.WaitingForT1;
@@ -163,32 +206,11 @@ class BleNotificationService {
     await file.writeAsString('$message\n', mode: FileMode.append);
   }
 
-  String getIMULastMessages() {
-    if (_imuDataMessages.isNotEmpty) {
-      return _imuDataMessages.last;
-    } else {
-      return 'No messages received';
-    }
-  }
-
-  List<String> getIMUMessages() {
-    if (_imuDataMessages.isNotEmpty) {
-      return _imuDataMessages;
-    } else {
-      return ['No messages received'];
-    }
-  }
-
-  String getRunControlLatestMessage() {
-    if (_runControlMessages.isNotEmpty) {
-      return _runControlMessages.last;
-    } else {
-      return 'No messages received';
-    }
+  void stopListeningToIMUData() {
+    _imuDataSubscription?.cancel();
   }
 
   void stopListeningToNotifications() {
-    _imuDataSubscription?.cancel();
     _runControlSubscription?.cancel();
   }
 
@@ -198,4 +220,10 @@ class BleNotificationService {
       _connectedDevice = null;
     }
   }
+
+  void dispose() {
+    _receivedMessagesController.close();
+    _imuDataController.close();
+  }
+
 }
