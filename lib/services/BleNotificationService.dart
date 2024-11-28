@@ -128,7 +128,7 @@ class BleNotificationService {
 
     // Log the synchronization data
     final String logEntry = '$T1, $T2, $T3, $T4, Δ: $delta, d: $delay';
-    await _logData(logEntry, 'ble_delay_offset_exp2');
+    await _logData(logEntry, 'ble_delay_offset_exp6');
 
     // Reset state for the next synchronization cycle
     _syncState = SyncState.WaitingForT1;
