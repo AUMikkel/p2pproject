@@ -1,15 +1,16 @@
 import 'package:flutter/material.dart';
 import '../login/login.dart';
 import '../rundetails/RunDetailsScreen.dart';
+import '../shared/UserSession.dart'; // Import UserSession for managing session data
 
 class ProfileScreen extends StatelessWidget {
-  final String? name;
+  final String? username;
   final String? email;
   final String? profileImageUrl;
 
   const ProfileScreen({
     super.key,
-    required this.name,
+    required this.username,
     required this.email,
     required this.profileImageUrl,
   });
@@ -23,11 +24,15 @@ class ProfileScreen extends StatelessWidget {
     );
   }
 
-  void _logout(BuildContext context) {
-    // Implement logout logic here, e.g., clear user session or navigate to login screen.
-    // Here we’ll just pop back to the main screen for illustration.
+  Future<void> _logout(BuildContext context) async {
+    // Clear user session data
+    await UserSession().logout();
 
-    Navigator.push(context, MaterialPageRoute(builder: (context) => const LoginScreen()));
+    // Navigate to the LoginScreen
+    Navigator.pushReplacement(
+      context,
+      MaterialPageRoute(builder: (context) => const LoginScreen()),
+    );
   }
 
   @override
@@ -35,7 +40,7 @@ class ProfileScreen extends StatelessWidget {
     return Scaffold(
       body: Padding(
         padding: const EdgeInsets.all(16.0),
-        child: SingleChildScrollView( // Add this to make content scrollable
+        child: SingleChildScrollView(
           child: Column(
             children: <Widget>[
               Column(
@@ -44,78 +49,28 @@ class ProfileScreen extends StatelessWidget {
                   Center(
                     child: CircleAvatar(
                       radius: 50,
-                      backgroundImage: NetworkImage(profileImageUrl!),
+                      backgroundImage: profileImageUrl != null
+                          ? NetworkImage(profileImageUrl!)
+                          : const AssetImage('assets/default_profile.png') as ImageProvider,
                     ),
                   ),
                   const SizedBox(height: 16.0),
                   TextFormField(
-                    initialValue: name,
+                    initialValue: username ?? 'Not provided',
                     decoration: const InputDecoration(
-                      labelText: 'Name',
+                      labelText: 'Username',
                       border: OutlineInputBorder(),
                     ),
                     readOnly: true,
                   ),
                   const SizedBox(height: 16.0),
                   TextFormField(
-                    initialValue: email,
+                    initialValue: email ?? 'Not provided',
                     decoration: const InputDecoration(
                       labelText: 'Email',
                       border: OutlineInputBorder(),
                     ),
                     readOnly: true,
-                  ),
-                  const SizedBox(height: 16.0),
-                  Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.all(16.0),
-                    decoration: BoxDecoration(
-                      border: Border.all(color: Colors.grey),
-                      borderRadius: BorderRadius.circular(8.0),
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: <Widget>[
-                        const Text(
-                          'Recent Runs',
-                          style: TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                        const SizedBox(height: 8.0),
-                        ElevatedButton(
-                          onPressed: () => _navigateToRunDetails(context, 'Run 1: 5 km in 25 min'),
-                          child: const Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: [
-                              Text('Run 1: 5 km in 25 min'),
-                              Icon(Icons.terrain), // Mountain icon
-                            ],
-                          ),
-                        ),
-                        ElevatedButton(
-                          onPressed: () => _navigateToRunDetails(context, 'Run 2: 10 km in 50 min'),
-                          child: const Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: [
-                              Text('Run 2: 10 km in 50 min'),
-                              Icon(Icons.location_city), // Road icon
-                            ],
-                          ),
-                        ),
-                        ElevatedButton(
-                          onPressed: () => _navigateToRunDetails(context, 'Run 3: 7 km in 35 min'),
-                          child: const Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: [
-                              Text('Run 3: 7 km in 35 min'),
-                              Icon(Icons.forest), // Forest icon
-                            ],
-                          ),
-                        ),
-                      ],
-                    ),
                   ),
                 ],
               ),

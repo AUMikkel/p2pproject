@@ -1,12 +1,14 @@
+import 'dart:convert'; // For encoding and decoding JSON
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:http/http.dart' as http; // Add HTTP package for API calls
 import 'package:p2prunningapp/ui/profile/profile.dart';
 import 'package:p2prunningapp/ui/register/register.dart';
 import 'package:p2prunningapp/ui/shared/UserSession.dart';
 import 'package:p2prunningapp/ui/home/homescreen.dart';
-import '../shared/UserSession.dart'; // Import UserSession class
+import 'package:audioplayers/audioplayers.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -19,31 +21,63 @@ class _LoginScreenState extends State<LoginScreen> {
   final _formKey = GlobalKey<FormState>();
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
+  final AudioPlayer audioPlayer = AudioPlayer();
 
   Future<void> _login() async {
     if (_formKey.currentState!.validate()) {
-      // Simulate successful login with placeholder data
-      const String userName = "John Doe";
-      const String profileImageUrl = "https://example.com/profile.jpg";
+      final url = Uri.parse('https://app.dokkedalleth.dk/login.php');
+      final body = {
+        'username': _emailController.text, // Use the username for login
+        'password': _passwordController.text,
+      };
 
-      // Save user data to UserSession
-      await UserSession().saveUserData(
-        _passwordController.text,
-        _emailController.text,
-        profileImageUrl,
-      );
+      try {
+        final response = await http.post(
+          url,
+          headers: {'Content-Type': 'application/json'},
+          body: jsonEncode(body),
+        );
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Logging in...'), duration: Duration(seconds: 1)),
+        if (response.statusCode == 200) {
+          final data = jsonDecode(response.body);
 
-      );
+          if (data['success']) {
+            // Parse username, email, and profileImageUrl from the response
+            final username = data['username'] ?? 'Unknown User';
+            final email = data['email'] ?? 'No email provided';
+            final profileImageUrl = data['profileImageUrl'] ?? 'https://example.com/default-profile.jpg';
 
-      Navigator.push(
-        context,
-        CupertinoPageRoute(
-          builder: (context) => HomeScreen(),
-        ),
-      );
+            // Save user data
+            await UserSession().saveUserData(
+              data['username'], // Save the username, not the name
+              data['email'],
+              data['profileImageUrl'],
+            );
+
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('Login successful!')),
+            );
+
+            // Navigate to HomeScreen
+            Navigator.push(
+              context,
+              CupertinoPageRoute(builder: (context) => HomeScreen()),
+            );
+          } else {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text(data['error'] ?? 'Invalid credentials')),
+            );
+          }
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Server error: ${response.statusCode}')),
+          );
+        }
+      } catch (e) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error: $e')),
+        );
+      }
     }
   }
 

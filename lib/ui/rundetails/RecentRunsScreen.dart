@@ -1,49 +1,121 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
+import 'package:http/http.dart' as http;
 
-class RecentRunsScreen extends StatelessWidget {
+class RecentRunsScreen extends StatefulWidget {
+  @override
+  _RecentRunsScreenState createState() => _RecentRunsScreenState();
+}
+
+class _RecentRunsScreenState extends State<RecentRunsScreen> {
+  List<Map<String, dynamic>> recentRuns = [];
+  bool isLoading = true;
+  bool hasError = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _fetchRecentRuns();
+  }
+
+  Future<void> _fetchRecentRuns() async {
+    try {
+      final response = await http.get(Uri.parse('https://app.dokkedalleth.dk/routes.php'));
+
+      if (response.statusCode == 200) {
+        final jsonData = json.decode(response.body);
+        if (jsonData['success']) {
+          setState(() {
+            recentRuns = _processRuns(jsonData['routes']);
+            isLoading = false;
+          });
+        } else {
+          setState(() {
+            print('Failed to load recent runs: ${jsonData['error']}');
+            print('Response: ${response.body}');
+            hasError = true;
+            isLoading = false;
+          });
+        }
+      } else {
+        setState(() {
+          print('Failed to load recent runs: ${response.statusCode}');
+          print('Response: ${response.body}');
+          hasError = true;
+          isLoading = false;
+        });
+      }
+    } catch (e) {
+      setState(() {
+        print('Failed to load recent runs1: $e');
+        hasError = true;
+        isLoading = false;
+      });
+    }
+  }
+
+  List<Map<String, dynamic>> _processRuns(List<dynamic> runs) {
+    return runs.map((run) {
+      final totalTimeInSeconds = run['total_time'] is int
+          ? run['total_time']
+          : int.tryParse(run['total_time'].toString()) ?? 0;
+
+      final totalDistanceInKm = run['total_distance'] is num
+          ? run['total_distance'] / 1000
+          : double.tryParse(run['total_distance'].toString()) ?? 0.0;
+
+      String pace = "N/A";
+      if (totalDistanceInKm > 0) {
+        final paceInSecondsPerKm = totalTimeInSeconds / totalDistanceInKm;
+        final paceMinutes = (paceInSecondsPerKm ~/ 60).toString();
+        final paceSeconds = (paceInSecondsPerKm % 60).toStringAsFixed(0).padLeft(2, '0');
+        pace = '$paceMinutes:$paceSeconds';
+      }
+
+      // Safely parse the route data
+      final route = run['route'] is List
+          ? (run['route'] as List<dynamic>)
+          .map((point) => LatLng(point['lat'], point['lng']))
+          .toList()
+          : <LatLng>[];
+
+      if (route.isEmpty) {
+        print('Invalid or missing route data for run ID: ${run['id']}');
+      }
+
+      return {
+        'date': run['date'], // Replace with a formatted date if available
+        'distance': '${totalDistanceInKm.toStringAsFixed(2)} km',
+        'time': _formatTime(totalTimeInSeconds),
+        'pace': pace,
+        'route': route, // Safe route data
+        'checkpoints': run['checkpoints'], // Include checkpoints if needed
+      };
+    }).toList();
+  }
+
+  String _formatTime(int totalSeconds) {
+    final minutes = (totalSeconds ~/ 60).toString();
+    final seconds = (totalSeconds % 60).toString().padLeft(2, '0');
+    return '$minutes:$seconds';
+  }
+
   @override
   Widget build(BuildContext context) {
-    // Placeholder list of recent runs with additional details
-    final List<Map<String, dynamic>> recentRuns = [
-      {
-        'date': 'Oct 29, 2024',
-        'distance': '5.2 km',
-        'time': '25:30',
-        'pace': '4:55/km',
-        'elevationGain': '150 m',
-        'route': [
-          LatLng(37.7749, -122.4194),
-          LatLng(37.7849, -122.4094),
-          LatLng(37.7959, -122.4500),
-        ],
-      },
-      {
-        'date': 'Oct 28, 2024',
-        'distance': '4.0 km',
-        'time': '22:15',
-        'pace': '5:34/km',
-        'elevationGain': '120 m',
-        'route': [
-          LatLng(37.7749, -122.4194),
-          LatLng(37.7849, -122.4094),
-          LatLng(37.7949, -122.3994),
-        ],
-      },
-      {
-        'date': 'Oct 27, 2024',
-        'distance': '6.1 km',
-        'time': '30:45',
-        'pace': '5:02/km',
-        'elevationGain': '200 m',
-        'route': [
-          LatLng(37.7649, -122.4294),
-          LatLng(37.7749, -122.4194),
-          LatLng(37.7849, -122.4094),
-        ],
-      },
-    ];
+    if (isLoading) {
+      return const Center(child: CircularProgressIndicator());
+    }
+
+    if (hasError) {
+      return const Center(
+        child: Text(
+          'Failed to load recent runs. Please try again later.',
+          style: TextStyle(color: Colors.red),
+        ),
+      );
+    }
 
     return ListView.builder(
       padding: const EdgeInsets.all(8),
@@ -65,18 +137,19 @@ class RecentRunsScreen extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Padding(
-                    padding:
-                    const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+                    padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
                     child: Row(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text("Pace: ${run['pace']}",
-                            style: const TextStyle(fontSize: 16,color: Colors.black)
-                            ),
+                        Text(
+                          "Pace: ${run['pace']}/km",
+                          style: const TextStyle(fontSize: 16, color: Colors.black),
+                        ),
                         const Spacer(),
-                        Text("Elevation Gain: ${run['elevationGain']}",
-                            style: const TextStyle(fontSize: 16, color: Colors.black)
-                            ),
+                        Text(
+                          "Checkpoints: ${run['checkpoints']?.length ?? 0}",
+                          style: const TextStyle(fontSize: 16, color: Colors.black),
+                        ),
                       ],
                     ),
                   ),
@@ -91,11 +164,11 @@ class RecentRunsScreen extends StatelessWidget {
                         mapController: controller,
                         options: MapOptions(
                           initialCameraFit: CameraFit.coordinates(
-                            coordinates: route, // Fit camera to route coordinates
-                            padding: const EdgeInsets.all(30), // Add padding around route
+                            coordinates: route,
+                            padding: const EdgeInsets.all(30),
                           ),
                           interactionOptions: const InteractionOptions(
-                            flags: InteractiveFlag.none, // Disable user interactions
+                            flags: InteractiveFlag.none,
                           ),
                         ),
                         children: [
