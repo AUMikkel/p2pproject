@@ -12,23 +12,26 @@ class IMUReader {
     _initialize();
   }
 
-  final StreamController<List<double>> _accelerometerController = StreamController<List<double>>.broadcast();
-  final StreamController<List<double>> _gyroscopeController = StreamController<List<double>>.broadcast();
-  final StreamController<List<double>> _magnetometerController = StreamController<List<double>>.broadcast();
+  final StreamController<Map<String, dynamic>> _accelerometerController = StreamController<Map<String, dynamic>>.broadcast();
+  final StreamController<Map<String, dynamic>> _gyroscopeController = StreamController<Map<String, dynamic>>.broadcast();
+  final StreamController<Map<String, dynamic>> _magnetometerController = StreamController<Map<String, dynamic>>.broadcast();
 
-  Stream<List<double>> get accelerometerStream => _accelerometerController.stream;
-  Stream<List<double>> get gyroscopeStream => _gyroscopeController.stream;
-  Stream<List<double>> get magnetometerStream => _magnetometerController.stream;
+  Stream<Map<String, dynamic>> get accelerometerStream => _accelerometerController.stream;
+  Stream<Map<String, dynamic>> get gyroscopeStream => _gyroscopeController.stream;
+  Stream<Map<String, dynamic>> get magnetometerStream => _magnetometerController.stream;
 
   void _initialize() {
-    accelerometerEvents.listen((AccelerometerEvent event) {
-      _accelerometerController.add([event.x, event.y, event.z]);
+    accelerometerEventStream().listen((AccelerometerEvent event) {
+      final int timestamp = DateTime.now().microsecondsSinceEpoch;
+      _accelerometerController.add({'timestamp': timestamp, 'data': [event.x, event.y, event.z]});
     });
-    gyroscopeEvents.listen((GyroscopeEvent event) {
-      _gyroscopeController.add([event.x, event.y, event.z]);
+    gyroscopeEventStream().listen((GyroscopeEvent event) {
+      final int timestamp = DateTime.now().microsecondsSinceEpoch;
+      _gyroscopeController.add({'timestamp': timestamp, 'data': (event.x, event.y, event.z)});
     });
-    magnetometerEvents.listen((MagnetometerEvent event) {
-      _magnetometerController.add([event.x, event.y, event.z]);
+    magnetometerEventStream().listen((MagnetometerEvent event) {
+      final int timestamp = DateTime.now().microsecondsSinceEpoch;
+      _magnetometerController.add({'timestamp': timestamp, 'data': (event.x, event.y, event.z)});
     });
   }
 

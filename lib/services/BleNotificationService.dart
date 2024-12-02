@@ -29,8 +29,9 @@ class BleNotificationService {
   final StreamController<String> _receivedMessagesController = StreamController<String>.broadcast();
   Stream<String> get receivedMessagesStream => _receivedMessagesController.stream;
 
-  final StreamController<String> _imuDataController = StreamController<String>.broadcast();
-  Stream<String> get imuDataStream => _imuDataController.stream;
+  final StreamController<Map<String, dynamic>> _imuDataController = StreamController<Map<String, dynamic>>.broadcast();
+  Stream<Map<String, dynamic>> get imuDataStream => _imuDataController.stream;
+
 
   final List<int> _clockSyncList = [];
   SyncState _syncState = SyncState.WaitingForT1;
@@ -46,7 +47,7 @@ class BleNotificationService {
     for (BluetoothService service in services) {
       for (BluetoothCharacteristic characteristic in service.characteristics) {
         if (characteristic.properties.notify &&
-            characteristic.uuid.toString().toUpperCase() == "AE4B02CC-DF79-6EF4-51D8-36EB0E0B0F14") {
+            characteristic.uuid.toString().toUpperCase() == "AE4B02CC-DF79-6EF4-51D8-36EB0E0B0F13") {
           await characteristic.setNotifyValue(true);
 
           _runControlSubscription = characteristic.value.listen((value) async {
@@ -68,12 +69,14 @@ class BleNotificationService {
     for (BluetoothService service in services) {
       for (BluetoothCharacteristic characteristic in service.characteristics) {
         if (characteristic.properties.notify &&
-            characteristic.uuid.toString().toUpperCase() == "IMU_CHARACTERISTIC_UUID") {
+            characteristic.uuid.toString().toUpperCase() == "AE4B02CC-DF79-6EF4-51D8-36EB0E0B0F14") {
           await characteristic.setNotifyValue(true);
 
           _imuDataSubscription = characteristic.value.listen((value) async {
+            // Timestamp the IMU data and add it to the stream
             final String message = String.fromCharCodes(value);
-            _imuDataController.add(message); // Add IMU data to the stream
+            final int timestamp = DateTime.now().microsecondsSinceEpoch;
+            _imuDataController.add({'timestamp': timestamp, 'data': message}); // Add IMU data to the stream
           });
         }
       }

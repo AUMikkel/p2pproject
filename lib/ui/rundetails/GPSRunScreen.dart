@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:flutter_activity_recognition/models/activity.dart';
 import 'package:flutter_map/flutter_map.dart';
@@ -14,6 +15,7 @@ import '../../services/sendRunData.dart';
 import 'package:http/http.dart' as http;
 import '../shared/UserSession.dart';
 import '../../sensors/IMUReader.dart';
+import '../../utils/KalmanFilter.dart';
 
 class GPSRunScreen extends StatefulWidget {
   @override
@@ -22,11 +24,13 @@ class GPSRunScreen extends StatefulWidget {
 
 class _GPSRunScreenState extends State<GPSRunScreen> {
   final IMUReader imuReader = IMUReader();
+  late final KalmanFilter _kalmanFilter;
   final Location _location = Location();
   final AudioPlayer _audioPlayer = AudioPlayer(); // Initialize the audio player
   late final ActivityRecognitionService _activityService;
   List<Map<String, dynamic>> _checkpoints = [];
   bool _isRecording = false;
+  bool _isWaitingForStartSignal = false; // Add this line
   bool _isLoadingLocation = true;
 
   ValueNotifier<List<LatLng>> _route = ValueNotifier<List<LatLng>>([]);
@@ -35,9 +39,9 @@ class _GPSRunScreenState extends State<GPSRunScreen> {
 
   StreamSubscription<LocationData>? _locationSubscription;
   StreamSubscription<Activity>? _activitySubscription;
-  StreamSubscription<List<double>>? _accelerometerSubscription;
-  StreamSubscription<List<double>>? _gyroscopeSubscription;
-  StreamSubscription<List<double>>? _magnetometerSubscription;
+  StreamSubscription<Map<String, dynamic>>? _accelerometerSubscription;
+  StreamSubscription<Map<String, dynamic>>? _bleIMUDataSubscription;
+
 
   Stopwatch _stopwatch = Stopwatch(); // Track elapsed time
   double _totalDistance = 0.0; // Track total distance in kilometers
@@ -47,9 +51,22 @@ class _GPSRunScreenState extends State<GPSRunScreen> {
   bool _isBleConnected = false;
 
   // Text for the button at then buttom of the screen
-  String _buttonText = 'Start Run';
+  String _buttonText = 'Start Run'; // Initialize button text
 
   StreamSubscription<LocationData>? _continuousLocationSubscription;
+
+  LatLng? _previousLocation; // Define _previousLocation
+  int? _previousTimestamp; // Define _previousTimestamp
+
+  // Buffers for IMU data
+  Map<int, List<double>> _mobileIMUBuffer = {};
+  Map<int, List<double>> _bleIMUBuffer = {};
+
+  ValueNotifier<double> _currentPace = ValueNotifier<double>(0.0);
+  ValueNotifier<double> _currentVelocity = ValueNotifier<double>(0.0);
+
+  int? _lastTimestamp;
+
   @override
   void initState() {
     super.initState();
@@ -66,19 +83,85 @@ class _GPSRunScreenState extends State<GPSRunScreen> {
     _startContinuousLocationUpdates();
     _getInitialLocation();
 
-    // Listen to IMU data streams
+
     _accelerometerSubscription = imuReader.accelerometerStream.listen((data) {
-      // Process accelerometer data
-      print('Accelerometer: $data');
+      if (_isRecording){
+        //print('IMU Data mobile: ${data['data']}');
+        int timestamp = data['timestamp'];
+        _mobileIMUBuffer[timestamp] = data['data'];
+        _combineIMUData(timestamp);
+      }
     });
-    _gyroscopeSubscription = imuReader.gyroscopeStream.listen((data) {
-      // Process gyroscope data
-      print('Gyroscope: $data');
+
+    _bleIMUDataSubscription = BleNotificationService().imuDataStream.listen((data) {
+      if (_isRecording) {
+        //print('IMU Data ble: ${data['data']}');
+        int timestamp = data['timestamp'];
+        _bleIMUBuffer[timestamp] = _parseIMUData(data['data']);
+        _combineIMUData(timestamp);
+      }
     });
-    _magnetometerSubscription = imuReader.magnetometerStream.listen((data) {
-      // Process magnetometer data
-      print('Magnetometer: $data');
-    });
+
+  }
+
+  void _combineIMUData(int timestamp) {
+    const int tolerance = 20000; // Tolerance in microseconds
+    const int propagationDelay = 62598; // Propagation delay in microseconds
+
+    // Only proceed if there is data in the BLE IMU buffer
+    if (_bleIMUBuffer.isEmpty) {
+      return;
+    }
+
+    int adjustedTimestamp = timestamp - propagationDelay;
+
+    int? matchingTimestamp = _mobileIMUBuffer.keys.firstWhere(
+          (t) => (t - adjustedTimestamp).abs() <= tolerance,
+      orElse: () => 0,
+    );
+
+    if (matchingTimestamp != 0 && _bleIMUBuffer.containsKey(matchingTimestamp)) {
+      List<double> imuDataMobile = _mobileIMUBuffer.remove(matchingTimestamp)!;
+      List<double> imuDataBle = _bleIMUBuffer.remove(matchingTimestamp)!;
+      _handleIMUData(imuDataMobile, imuDataBle, matchingTimestamp);
+    }
+  }
+
+  double _getDeltaTime(int timestamp) {
+    if (_lastTimestamp == null) {
+      _lastTimestamp = timestamp;
+      return 0.0;
+    }
+    double deltaTime = (timestamp - _lastTimestamp!) / 1000000.0;
+    _lastTimestamp = timestamp;
+    return deltaTime;
+  }
+
+  void _handleIMUData(List<double> imuDataMobile, List<double> imuDataBle, int timestamp) {
+    double deltaTime = _getDeltaTime(timestamp);
+    print('DeltaTime: $deltaTime s');
+    // Weighted averaging of IMU data
+    double weightMobile = 1.0; // Adjust weights as needed
+    double weightBle = 0.0;
+    List<double> fusedIMUData = [
+      weightMobile * imuDataMobile[0] + weightBle * imuDataBle[0], // ax
+      weightMobile * imuDataMobile[1] + weightBle * imuDataBle[1]  // ay
+    ];
+
+    _kalmanFilter.predict(fusedIMUData, deltaTime);
+  }
+
+  List<double> _parseIMUData(String message) {
+    // Remove parentheses and split the string by commas
+    List<String> parts = message.replaceAll('(', '').replaceAll(')', '').split(',');
+    return parts.map((part) {
+      try {
+        return double.parse(part);
+      } catch (e) {
+        print('Error parsing double: $part');
+        return 0.0; // Default value in case of error
+      }
+    }).toList();
   }
 
   @override
@@ -87,8 +170,7 @@ class _GPSRunScreenState extends State<GPSRunScreen> {
     _locationSubscription?.cancel();
     _activitySubscription?.cancel();
     _accelerometerSubscription?.cancel();
-    _gyroscopeSubscription?.cancel();
-    _magnetometerSubscription?.cancel();
+    _bleIMUDataSubscription?.cancel();
     imuReader.dispose();
     _route.dispose();
     _currentLocation.dispose();
@@ -97,20 +179,52 @@ class _GPSRunScreenState extends State<GPSRunScreen> {
     _continuousLocationSubscription?.cancel();
     super.dispose();
   }
+
   Future<void> _startContinuousLocationUpdates() async {
-    // Ensure location permissions are granted
     if (await _location.requestPermission() == PermissionStatus.granted) {
       _continuousLocationSubscription = _location.onLocationChanged.listen(
             (locationData) {
           if (locationData.latitude != null && locationData.longitude != null) {
             LatLng newLocation = LatLng(locationData.latitude!, locationData.longitude!);
+            int currentTimestamp = DateTime.now().millisecondsSinceEpoch;
 
-            // Update the current location
             if (!_isRecording) {
-              // Only update the current location when not recording
               setState(() {
                 _currentLocation.value = newLocation;
               });
+            } else {
+              double vx = 0.0;
+              double vy = 0.0;
+
+              if (_previousLocation != null && _previousTimestamp != null) {
+                double deltaTime = (currentTimestamp - _previousTimestamp!) / 1000.0;
+                if (deltaTime <= 0.1 || deltaTime > 10.0) {
+                  return;
+                }
+                double distance = const Distance().as(LengthUnit.Meter, _previousLocation!, newLocation);
+                double bearing = const Distance().bearing(_previousLocation!, newLocation);
+
+                vx = (distance / deltaTime) * cos(bearing * pi / 180.0);
+                vy = (distance / deltaTime) * sin(bearing * pi / 180.0);
+              }
+
+              _kalmanFilter.updateWithGPS(newLocation, vx, vy);
+
+              _previousLocation = newLocation;
+              _previousTimestamp = currentTimestamp;
+
+              double speed = sqrt(_kalmanFilter.state[2] * _kalmanFilter.state[2] + _kalmanFilter.state[3] * _kalmanFilter.state[3]);
+              double pace = (speed > 0.0) ? (1000 / speed) / 60 : 0;
+
+              if (pace.isFinite && pace > 0) {
+                _currentPace.value = pace;
+              } else {
+                _currentPace.value = 0.0;
+              }
+              print('Pace: ${pace} min/km');
+              print('Speed: ${speed} min/km');
+
+              _currentVelocity.value = speed;
             }
           }
         },
@@ -172,6 +286,7 @@ class _GPSRunScreenState extends State<GPSRunScreen> {
         _currentLocation.value = LatLng(locationData.latitude!, locationData.longitude!);
         setState(() {
           _isLoadingLocation = false;
+          _kalmanFilter = KalmanFilter(_currentLocation.value!); // Initialize KalmanFilter
         });
       }
     }
@@ -185,7 +300,7 @@ class _GPSRunScreenState extends State<GPSRunScreen> {
       if (jsonData['success'] == true && jsonData['routes'] is List) {
         // Extract the "routes" list from the JSON response
         print(response.body);
-        print('Fetched ${jsonData['routes'].length} ghost routes.');
+        //print('Fetched ${jsonData['routes'].length} ghost routes.');
         return List<Map<String, dynamic>>.from(jsonData['routes']);
       } else {
         throw Exception('Invalid data format or no routes found.');
@@ -211,7 +326,7 @@ class _GPSRunScreenState extends State<GPSRunScreen> {
               title: Text('Route ${route['id']} - ${route['total_distance']} m'),
               subtitle: Text('By ${route['username']}'),
             onTap: () {
-            print("Route ID type: ${route['id'].runtimeType}"); // Debug type
+            //print("Route ID type: ${route['id'].runtimeType}"); // Debug type
             setState(() {
             _selectedGhostRouteId = route['id']?.toString(); // Safely convert to String
             _selectedGhostData = {
@@ -284,7 +399,7 @@ class _GPSRunScreenState extends State<GPSRunScreen> {
         setState(() {
           _ghostProgressMessage = 'Run completed! All checkpoints passed.';
           _isRunCompleted = true; // Mark the run as completed
-          print('Run completed! All checkpoints passed.');
+          //print('Run completed! All checkpoints passed.');
         });
       }
       return;
@@ -302,14 +417,14 @@ class _GPSRunScreenState extends State<GPSRunScreen> {
 
       setState(() {
         if (timeDifference > 0) {
-          print('You are behind by $timeDifference seconds.');
+          //print('You are behind by $timeDifference seconds.');
           _ghostProgressMessage = 'You are behind by $timeDifference seconds.';
-          _audioPlayer.play(AssetSource('behind.wav'));
+          //_audioPlayer.play(AssetSource('behind.wav'));
         } else {
-          print('You are ahead by ${timeDifference.abs()} seconds.');
+          //print('You are ahead by ${timeDifference.abs()} seconds.');
           _ghostProgressMessage =
           'You are ahead by ${timeDifference.abs()} seconds.';
-          _audioPlayer.play(AssetSource('pacesound.wav'));
+          //_audioPlayer.play(AssetSource('pacesound.wav'));
         }
       });
 
@@ -338,7 +453,11 @@ class _GPSRunScreenState extends State<GPSRunScreen> {
       _stopRecording();
     } else {
       // Start recording
-      _startRecording();
+      setState(() {
+        _isWaitingForStartSignal = true; // Set waiting state
+        _buttonText = 'Waiting for start signal'; // Update button text
+      });
+      await _startRecording();
     }
   }
 
@@ -370,7 +489,7 @@ class _GPSRunScreenState extends State<GPSRunScreen> {
 
           // Compare with ghost at each point
           if (_selectedGhostData != null) {
-            print('Comparing with ghost...');
+            //print('Comparing with ghost...');
             _compareWithGhost(newPoint, _stopwatch.elapsed.inSeconds);
           }
           _checkPaceAndPlaySound();
@@ -393,6 +512,7 @@ class _GPSRunScreenState extends State<GPSRunScreen> {
     // Start recording logic
     setState(() {
       _isRecording = true;
+      _isWaitingForStartSignal = false; // Reset waiting state
       _buttonText = 'Stop Run';
     });
   }
@@ -416,8 +536,8 @@ class _GPSRunScreenState extends State<GPSRunScreen> {
     final imuData = {}; // Replace with actual IMU data if collected
     final userSession = UserSession();
     userSession.getUserData().then((userData) {
-      print('Sending run data:');
-      print({
+      //print('Sending run data:');
+      /*print({
         'username': userData['username'], // Replace with actual user ID
         'start_time': DateTime.now()
             .subtract(Duration(seconds: _stopwatch.elapsed.inSeconds))
@@ -426,8 +546,8 @@ class _GPSRunScreenState extends State<GPSRunScreen> {
         'total_distance': _totalDistance,
         'activity_type': _currentActivity.value,
         'checkpoints': _checkpoints,
-      });
-      print('User data: $userData');
+      });*/
+      //print('User data: $userData');
       String? username = userData['username']; // Debug log
       sendRunData(
         username: username, // Replace with actual user ID
@@ -461,14 +581,33 @@ class _GPSRunScreenState extends State<GPSRunScreen> {
     return distance.as(LengthUnit.Meter, point1, point2); // Distance in meters
   }
 
-  void _checkPaceAndPlaySound() {
+  void _checkPaceAndPlaySound_old() {
     if (_totalDistance > 0) {
       double elapsedMinutes = _stopwatch.elapsed.inSeconds / 60;
       double pace = elapsedMinutes / _totalDistance; // Pace in minutes per kilometer
 
       if (pace > _paceThreshold) {
-        _playSlowPaceAlert();
+        //_playSlowPaceAlert();
       }
+    }
+  }
+
+  void _checkPaceAndPlaySound() {
+    if (_totalDistance > 0) {
+      double vx = _kalmanFilter.state[2];
+      double vy = _kalmanFilter.state[3];
+      double speed = sqrt(vx * vx + vy * vy); // Speed in meters per second
+      const double threshold = 0.1; // Define a small threshold value
+      if (speed < threshold) {
+        speed = 0.0; // Set speed to zero if it is close to zero
+      }
+      double pace = (speed > 0) ? (1000 / speed) / 60 : 0; // Pace in minutes per kilometer
+
+      if (pace > _paceThreshold) {
+        //_playSlowPaceAlert();
+      }
+
+      //('Estimated Pace: $pace min/km');
     }
   }
 
@@ -567,10 +706,52 @@ class _GPSRunScreenState extends State<GPSRunScreen> {
                     return Card(
                       child: Padding(
                         padding: const EdgeInsets.all(8.0),
-                        child: Text(
-                          'Current Activity: $activity\nTotal Distance: ${_totalDistance.toStringAsFixed(2)} m',
-                          style: TextStyle(
-                              fontSize: 16, fontWeight: FontWeight.bold,color: Colors.red),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Current Activity: $activity',
+                              style: TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.red,
+                              ),
+                            ),
+                            ValueListenableBuilder<double>(
+                              valueListenable: _currentPace,
+                              builder: (context, pace, _) {
+                                return Text(
+                                  'Current Pace: ${pace.toString()} min/km',
+                                  style: TextStyle(
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.bold,
+                                    color: Colors.red,
+                                  ),
+                                );
+                              },
+                            ),
+                            ValueListenableBuilder<double>(
+                              valueListenable: _currentVelocity,
+                              builder: (context, velocity, _) {
+                                return Text(
+                                  'Current Velocity: ${velocity.toString()} m/s',
+                                  style: TextStyle(
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.bold,
+                                    color: Colors.red,
+                                  ),
+                                );
+                              },
+                            ),
+                            Text(
+                              'Total Distance: ${_totalDistance.toStringAsFixed(2)} m',
+                              style: TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.red,
+                              ),
+                            ),
+                          ],
                         ),
                       ),
                     );
@@ -609,7 +790,7 @@ class _GPSRunScreenState extends State<GPSRunScreen> {
               style: ElevatedButton.styleFrom(
                 backgroundColor: _isRecording ? Colors.red : Colors.green,
               ),
-              child: Text(_isRecording ? 'Stop Run' : 'Start Recording'),
+              child: Text(_buttonText),
             ),
           ),
         ],
