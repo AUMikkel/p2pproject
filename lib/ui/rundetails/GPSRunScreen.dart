@@ -10,6 +10,7 @@ import '../../services/ActivityRecognitionService.dart';
 import '../../services/sendRunData.dart';
 import 'package:http/http.dart' as http;
 import '../shared/UserSession.dart';
+import 'package:flutter_tts/flutter_tts.dart';
 
 class GPSRunScreen extends StatefulWidget {
   @override
@@ -30,19 +31,27 @@ class _GPSRunScreenState extends State<GPSRunScreen> {
 
   StreamSubscription<LocationData>? _locationSubscription;
   StreamSubscription<Activity>? _activitySubscription;
-
+  FlutterTts _flutterTts = FlutterTts();
   Stopwatch _stopwatch = Stopwatch(); // Track elapsed time
   double _totalDistance = 0.0; // Track total distance in kilometers
   double _paceThreshold = 7.0; // Threshold pace in minutes per kilometer
 
   bool _isDisposed = false;
-
+  void _initializeTts() async {
+    await _flutterTts.setLanguage("en-US");
+    await _flutterTts.setPitch(1.0); // Normal pitch
+    await _flutterTts.setSpeechRate(0.5); // Slower speech rate
+  }
+  Future<void> _speak(String message) async {
+    await _flutterTts.stop(); // Stop any ongoing speech before starting new
+    await _flutterTts.speak(message);
+  }
   StreamSubscription<LocationData>? _continuousLocationSubscription;
   @override
   void initState() {
     super.initState();
     _activityService = ActivityRecognitionService();
-
+    _initializeTts();
     // Listen to shared activity updates
     _activitySubscription = _activityService.activityStream.listen((activity) {
       if (!_isDisposed) {
@@ -63,6 +72,7 @@ class _GPSRunScreenState extends State<GPSRunScreen> {
     _currentActivity.dispose();
     _stopwatch.stop();
     _continuousLocationSubscription?.cancel();
+    _flutterTts.stop();
     super.dispose();
   }
   Future<void> _startContinuousLocationUpdates() async {
@@ -105,8 +115,6 @@ class _GPSRunScreenState extends State<GPSRunScreen> {
       final jsonData = jsonDecode(response.body); // Parse JSON response
       if (jsonData['success'] == true && jsonData['routes'] is List) {
         // Extract the "routes" list from the JSON response
-        print(response.body);
-        print('Fetched ${jsonData['routes'].length} ghost routes.');
         return List<Map<String, dynamic>>.from(jsonData['routes']);
       } else {
         throw Exception('Invalid data format or no routes found.');
@@ -129,19 +137,26 @@ class _GPSRunScreenState extends State<GPSRunScreen> {
           itemBuilder: (context, index) {
             final route = routes[index];
             return ListTile(
-              title: Text('Route ${route['id']} - ${route['total_distance']} m'),
+              title: Text('Route ${route['id']} - ${route['total_distance']} m, ${(route['total_time']/60).toStringAsFixed(2)} min'),
               subtitle: Text('By ${route['username']}'),
-            onTap: () {
-            print("Route ID type: ${route['id'].runtimeType}"); // Debug type
-            setState(() {
-            _selectedGhostRouteId = route['id']?.toString(); // Safely convert to String
-            _selectedGhostData = {
-              ...route,
-              'checkpoints': route['checkpoints'] ?? []
-            }; // Store selected route data
-            });
-            Navigator.pop(context);
-            },
+              onTap: () {
+                setState(() {
+                  _selectedGhostRouteId = route['id']?.toString(); // Safely convert to String
+                  _selectedGhostData = {
+                    ...route,
+                    'checkpoints': route['checkpoints'] ?? []
+                  }; // Store selected route data
+
+                  // Calculate pace threshold (in minutes per kilometer)
+                  double ghostTimeInMinutes = route['total_time'] / 60.0; // Convert seconds to minutes
+                  double ghostDistanceInKm = route['total_distance'] / 1000.0; // Convert meters to kilometers
+                  if (ghostDistanceInKm > 0) {
+                    _paceThreshold = ghostTimeInMinutes / ghostDistanceInKm;
+                    print("Pace threshold set to $_paceThreshold min/km");
+                  }
+                });
+                Navigator.pop(context);
+              },
             );
           },
         );
@@ -149,41 +164,6 @@ class _GPSRunScreenState extends State<GPSRunScreen> {
     );
   }
   String? _ghostProgressMessage;
-/*
-  void _compareWithGhost(LatLng userLocation, int userElapsedTime) {
-    if (_selectedGhostData == null) return;
-
-    final ghostCheckpoints = _selectedGhostData!['checkpoints'];
-    if (ghostCheckpoints == null) {
-      setState(() {
-        _ghostProgressMessage = 'This ghost route has no checkpoints.';
-      });
-      return;
-    }
-    for (var checkpoint in ghostCheckpoints) {
-      final checkpointLatLng = LatLng(checkpoint['lat'], checkpoint['lng']);
-      final ghostTime = checkpoint['time'];
-
-      final distanceToCheckpoint =
-      const Distance().as(LengthUnit.Meter, userLocation, checkpointLatLng);
-
-      if (distanceToCheckpoint < 25) {
-        final timeDifference = userElapsedTime - ghostTime;
-
-        setState(() {
-          if (timeDifference > 0) {
-            print('You are behind by $timeDifference seconds.');
-            _ghostProgressMessage = 'You are behind by $timeDifference seconds.';
-          } else {
-            print('You are ahead by $timeDifference seconds.');
-            _ghostProgressMessage =
-            'You are ahead by ${timeDifference.abs()} seconds.';
-          }
-        });
-        break;
-      }
-    }
-  }*/
 
   int _currentGhostCheckpointIndex = 0; // Track the current checkpoint
   bool _isRunCompleted = false; // Flag to indicate race completion
@@ -225,12 +205,16 @@ class _GPSRunScreenState extends State<GPSRunScreen> {
         if (timeDifference > 0) {
           print('You are behind by $timeDifference seconds.');
           _ghostProgressMessage = 'You are behind by $timeDifference seconds.';
-          _audioPlayer.play(AssetSource('behind.wav'));
+          final message = 'You are behind by $timeDifference seconds.';
+          print(message);
+          _ghostProgressMessage = message;
+          _speak(message);
         } else {
           print('You are ahead by ${timeDifference.abs()} seconds.');
-          _ghostProgressMessage =
-          'You are ahead by ${timeDifference.abs()} seconds.';
-          _audioPlayer.play(AssetSource('pacesound.wav'));
+          final message = 'You are ahead by ${timeDifference.abs()} seconds.';
+          print(message);
+          _ghostProgressMessage = message;
+          _speak(message);
         }
       });
 
@@ -262,29 +246,19 @@ class _GPSRunScreenState extends State<GPSRunScreen> {
       _stopwatch.stop();
       setState(() => _isRecording = false);
 
-      // Save run data or send it to the server
+      // Prepare run data for saving
       final routeData = _route.value.map((point) {
         return {"lat": point.latitude, "lng": point.longitude};
       }).toList();
 
-      final imuData = {}; // Replace with actual IMU data if collected
+      final imuData = {};
       final userSession = UserSession();
       final userData = await userSession.getUserData();
-      print('Sending run data:');
-      print({
-        'username': userData['username'], // Replace with actual user ID
-        'start_time': DateTime.now()
-            .subtract(Duration(seconds: _stopwatch.elapsed.inSeconds))
-            .toIso8601String(),
-        'end_time': DateTime.now().toIso8601String(),
-        'total_distance': _totalDistance,
-        'activity_type': _currentActivity.value,
-        'checkpoints': _checkpoints,
-      });
-      print('User data: $userData');
-      String? username = userData['username'];// Debug log
-      sendRunData(
-        username: username, // Replace with actual user ID
+      final username = userData['username'];
+
+      // Send run data to the server
+      final result = sendRunData(
+        username: username,
         startTime: DateTime.now().subtract(Duration(seconds: _stopwatch.elapsed.inSeconds)),
         endTime: DateTime.now(),
         totalDistance: _totalDistance,
@@ -293,6 +267,17 @@ class _GPSRunScreenState extends State<GPSRunScreen> {
         imuData: imuData,
         checkpoints: _checkpoints,
       );
+      if (await result) {
+        showDialog(context: context,
+            builder: (context) => const AlertDialog(
+                title: Text('Run saved successfully.',
+                  style: TextStyle(color: Colors.white),)));
+      } else {
+        showDialog(context: context,
+            builder: (context) => const AlertDialog(
+                title: Text('Failed to save run.',style:
+                TextStyle(color: Colors.white),)));
+      }
       resetRecordingState();
     } else {
       // Start recording
@@ -324,10 +309,11 @@ class _GPSRunScreenState extends State<GPSRunScreen> {
               print('Comparing with ghost...');
               _compareWithGhost(newPoint, _stopwatch.elapsed.inSeconds);
             }
-            _checkPaceAndPlaySound();
           }
           _currentLocation.value = newPoint;
           _route.value = [..._route.value, newPoint];
+
+          _checkPaceAndUpdateDisplay();
         }
       });
       setState(() => _isRecording = true);
@@ -338,21 +324,28 @@ class _GPSRunScreenState extends State<GPSRunScreen> {
     const Distance distance = Distance();
     return distance.as(LengthUnit.Meter, point1, point2); // Distance in meters
   }
-
-  void _checkPaceAndPlaySound() {
+  ValueNotifier<String> _currentPace = ValueNotifier<String>("N/A min/km");
+  void _checkPaceAndUpdateDisplay() {
     if (_totalDistance > 0) {
-      double elapsedMinutes = _stopwatch.elapsed.inSeconds / 60;
-      double pace = elapsedMinutes / _totalDistance; // Pace in minutes per kilometer
+      double totalDistanceInKm = _totalDistance / 1000.0; // Convert meters to kilometers
+      double elapsedMinutes = _stopwatch.elapsed.inSeconds / 60.0;
 
-      if (pace > _paceThreshold) {
-        _playSlowPaceAlert();
+      // Avoid division by zero
+      if (totalDistanceInKm > 0) {
+        double pace = elapsedMinutes / totalDistanceInKm; // Pace in minutes per kilometer
+        String paceFormatted = "${pace.floor()}:${((pace % 1) * 60).toStringAsFixed(0).padLeft(2, '0')} min/km";
+
+        // Update the current pace
+        _currentPace.value = paceFormatted;
+      } else {
+        _currentPace.value = "N/A min/km";
       }
+    } else {
+      _currentPace.value = "N/A min/km";
     }
   }
 
-  Future<void> _playSlowPaceAlert() async {
-    await _audioPlayer.play(AssetSource('pacesound.wav')); // Play alert sound
-  }
+
 
   @override
   Widget build(BuildContext context) {
@@ -421,7 +414,7 @@ class _GPSRunScreenState extends State<GPSRunScreen> {
                           width: 80,
                           height: 80,
                           point: currentLocation,
-                          child: Icon(
+                          child: const Icon(
                             Icons.location_on,
                             color: Colors.red,
                             size: 40,
@@ -439,7 +432,7 @@ class _GPSRunScreenState extends State<GPSRunScreen> {
             right: 16,
             child: Column(
               children: [
-                ValueListenableBuilder<String>(
+                /*ValueListenableBuilder<String>(
                   valueListenable: _currentActivity,
                   builder: (context, activity, _) {
                     return Card(
@@ -453,7 +446,7 @@ class _GPSRunScreenState extends State<GPSRunScreen> {
                       ),
                     );
                   },
-                ),
+                ),*/
                 const SizedBox(height: 8),
                 ElevatedButton(
                   onPressed: _selectGhostRoute,
@@ -467,11 +460,29 @@ class _GPSRunScreenState extends State<GPSRunScreen> {
                   Card(
                     child: Padding(
                       padding: const EdgeInsets.all(8.0),
-                      child: Text(
-                        _ghostProgressMessage ??
-                            'Start racing to compare with the ghost!',
-                        style: TextStyle(
-                            fontSize: 16, fontWeight: FontWeight.bold,color: Colors.red),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          if (_ghostProgressMessage != null)
+                            Text(
+                              _ghostProgressMessage!,
+                              style: TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.red,
+                              ),
+                            ),
+                          const SizedBox(height: 8),
+                          Text(
+                            'Ghost Pace: ${_paceThreshold.toStringAsFixed(2)} min/km\n' +
+                                'Current Pace: ${_currentPace.value}',
+                            style: TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w500,
+                              color: Colors.blue,
+                            ),
+                          ),
+                        ],
                       ),
                     ),
                   ),

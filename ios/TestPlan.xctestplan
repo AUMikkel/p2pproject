@@ -1,0 +1,27 @@
+{
+  "configurations" : [
+    {
+      "id" : "AF952581-EB1D-480E-AE6B-49FE1800A4AD",
+      "name" : "Configuration 1",
+      "options" : {
+
+      }
+    }
+  ],
+  "defaultOptions" : {
+    "locationScenario" : {
+      "identifier" : "..\/..\/..\/..\/Downloads\/bikehike_course.gpx"
+    },
+    "testTimeoutsEnabled" : true
+  },
+  "testTargets" : [
+    {
+      "target" : {
+        "containerPath" : "container:Runner.xcodeproj",
+        "identifier" : "331C8080294A63A400263BE5",
+        "name" : "RunnerTests"
+      }
+    }
+  ],
+  "version" : 1
+}

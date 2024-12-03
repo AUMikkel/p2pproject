@@ -7,6 +7,7 @@ import 'package:mqtt_client/mqtt_client.dart';
 import 'package:p2prunningapp/services/mqtt_service.dart';
 import 'package:p2prunningapp/sensors/gps.dart';
 import 'package:p2prunningapp/sensors/imu.dart';
+import 'package:p2prunningapp/services/sendRunData.dart';
 import 'ui/login/login.dart';
 import 'package:p2prunningapp/services/bleService_old.dart';
 
@@ -14,6 +15,7 @@ Future<void> main() async {
 
   WidgetsFlutterBinding.ensureInitialized();
   await dotenv.load(fileName: '.env'); // Load environment variables
+
   runApp(const MyApp());
 }
 

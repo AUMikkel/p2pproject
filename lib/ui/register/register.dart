@@ -55,7 +55,7 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
             await UserSession().saveUserData(
               _nameController.text,
               _emailController.text,
-              'https://example.com/default-profile.png', // Replace with actual profile image URL
+              'https://example.com/default-profile.png',
             );
 
             // Navigate to HomeScreen
@@ -68,17 +68,25 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
           } else {
             setState(() {
               _errorMessage = data['error'] ?? 'Registration failed.';
-              print(data);
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('User already exists!')),
+              );
             });
           }
         } else {
           setState(() {
             _errorMessage = 'Server error: ${response.statusCode}';
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('Server error, try again later.')),
+            );
           });
         }
       } catch (e) {
         setState(() {
           _errorMessage = 'Error: $e';
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Error occurred, try restarting the app.')),
+          );
         });
       } finally {
         setState(() {
@@ -141,8 +149,8 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
                   if (value == null || value.isEmpty) {
                     return 'Please enter your password';
                   }
-                  if (value.length < 6) {
-                    return 'Password must be at least 6 characters.';
+                  if (value.length < 8) {
+                    return 'Password must be at least 8 characters.';
                   }
                   return null;
                 },

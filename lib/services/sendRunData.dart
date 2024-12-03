@@ -1,7 +1,7 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 
-Future<void> sendRunData({
+Future<bool> sendRunData({
   required String? username,
   required DateTime startTime,
   required DateTime endTime,
@@ -23,7 +23,6 @@ Future<void> sendRunData({
     "imu_data": imuData,
     'checkpoints': checkpoints,
   };
-  print("Sending check data: $checkpoints");
 
   try {
     final response = await http.post(
@@ -35,14 +34,15 @@ Future<void> sendRunData({
     if (response.statusCode == 200) {
       final responseData = jsonDecode(response.body);
       if (responseData['success']) {
-        print("Run data saved successfully! Run ID: ${responseData['run_id']}");
+        return true;
       } else {
-        print("Failed to save run data: ${responseData['error']}");
+        return false;
       }
     } else {
-      print("Server error: ${response.statusCode}");
+      return false;
     }
   } catch (e) {
-    print("Error sending run data: $e");
+    return false;
   }
 }
+

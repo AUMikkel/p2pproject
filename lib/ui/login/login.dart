@@ -27,7 +27,7 @@ class _LoginScreenState extends State<LoginScreen> {
     if (_formKey.currentState!.validate()) {
       final url = Uri.parse('https://app.dokkedalleth.dk/login.php');
       final body = {
-        'username': _emailController.text, // Use the username for login
+        'username': _emailController.text,
         'password': _passwordController.text,
       };
 
@@ -42,12 +42,7 @@ class _LoginScreenState extends State<LoginScreen> {
           final data = jsonDecode(response.body);
 
           if (data['success']) {
-            // Parse username, email, and profileImageUrl from the response
-            final username = data['username'] ?? 'Unknown User';
-            final email = data['email'] ?? 'No email provided';
-            final profileImageUrl = data['profileImageUrl'] ?? 'https://example.com/default-profile.jpg';
 
-            // Save user data
             await UserSession().saveUserData(
               data['username'], // Save the username, not the name
               data['email'],
@@ -65,7 +60,7 @@ class _LoginScreenState extends State<LoginScreen> {
             );
           } else {
             ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(content: Text(data['error'] ?? 'Invalid credentials')),
+              SnackBar(content: Text('Invalid credentials')),
             );
           }
         } else {
