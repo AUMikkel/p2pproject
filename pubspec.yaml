@@ -52,6 +52,7 @@ dependencies:
   audioplayers: ^6.1.0
   http: ^1.2.2
   sensors_plus: ^6.1.0
+  vector_math: ^2.1.4
 
 
 

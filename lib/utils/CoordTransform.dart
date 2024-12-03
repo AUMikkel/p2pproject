@@ -11,10 +11,10 @@ class CoordinateTransform {
     const double f = 1.0 / 298.257223563; // WGS-84 flattening
     const double b = a * (1 - f); // Semi-minor axis
 
-    double latRef = referencePoint.latitude * pi / 180.0;
-    double lonRef = referencePoint.longitude * pi / 180.0;
-    double lat = point.latitude * pi / 180.0;
-    double lon = point.longitude * pi / 180.0;
+    double latRef = referencePoint.latitude * (pi / 180.0);
+    double lonRef = referencePoint.longitude * (pi / 180.0);
+    double lat = point.latitude * (pi / 180.0);
+    double lon = point.longitude * (pi / 180.0);
 
     double sinLatRef = sin(latRef);
     double cosLatRef = cos(latRef);
@@ -38,8 +38,10 @@ class CoordinateTransform {
     double dz = z - zRef;
 
     double enuX = -sin(lonRef) * dx + cos(lonRef) * dy;
-    double enuY = -sinLatRef * cos(lonRef) * dx - sinLatRef * sin(lonRef) * dy + cosLatRef * dz;
-    double enuZ = cosLatRef * cos(lonRef) * dx + cosLatRef * sin(lonRef) * dy + sinLatRef * dz;
+    double enuY = -sinLatRef * cos(lonRef) * dx - sinLatRef * sin(lonRef) * dy +
+        cosLatRef * dz;
+    double enuZ = cosLatRef * cos(lonRef) * dx + cosLatRef * sin(lonRef) * dy +
+        sinLatRef * dz;
 
     return [enuX, enuY, enuZ];
   }

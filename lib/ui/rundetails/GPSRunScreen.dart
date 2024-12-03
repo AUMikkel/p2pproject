@@ -96,6 +96,8 @@ class _GPSRunScreenState extends State<GPSRunScreen> {
     _bleIMUDataSubscription = BleNotificationService().imuDataStream.listen((data) {
       if (_isRecording) {
         //print('IMU Data ble: ${data['data']}');
+        // Assuming that it has the right unit
+        // Convert raw readings (in LSBs) to m/s2m/s2: Acceleration in m/s²=(Raw reading)×(Sensitivity Scale Factor)×9.8Acceleration in m/s²=(Raw reading)×(Sensitivity Scale Factor)×9.8.
         int timestamp = data['timestamp'];
         _bleIMUBuffer[timestamp] = _parseIMUData(data['data']);
         _combineIMUData(timestamp);
@@ -105,7 +107,8 @@ class _GPSRunScreenState extends State<GPSRunScreen> {
   }
 
   void _combineIMUData(int timestamp) {
-    const int tolerance = 20000; // Tolerance in microseconds
+    const int imuFrequencyHz = 50; // Frequency of your IMU for the mobile device
+    final int tolerance = (1 / imuFrequencyHz * 1000000).toInt(); // Tolerance in microseconds
     const int propagationDelay = 62598; // Propagation delay in microseconds
 
     // Only proceed if there is data in the BLE IMU buffer
@@ -115,15 +118,26 @@ class _GPSRunScreenState extends State<GPSRunScreen> {
 
     int adjustedTimestamp = timestamp - propagationDelay;
 
-    int? matchingTimestamp = _mobileIMUBuffer.keys.firstWhere(
-          (t) => (t - adjustedTimestamp).abs() <= tolerance,
-      orElse: () => 0,
-    );
+    int? closestTimestamp;
+    int minDifference = tolerance;
 
-    if (matchingTimestamp != 0 && _bleIMUBuffer.containsKey(matchingTimestamp)) {
-      List<double> imuDataMobile = _mobileIMUBuffer.remove(matchingTimestamp)!;
-      List<double> imuDataBle = _bleIMUBuffer.remove(matchingTimestamp)!;
-      _handleIMUData(imuDataMobile, imuDataBle, matchingTimestamp);
+    // Find the closest timestamp in the mobile IMU buffer
+    for (int t in _mobileIMUBuffer.keys) {
+      int difference = (t - adjustedTimestamp).abs();
+      if (difference <= tolerance && difference < minDifference) {
+        minDifference = difference;
+        closestTimestamp = t;
+      }
+    }
+    // If a matching timestamp is found, combine the IMU data
+    if (closestTimestamp != null && _bleIMUBuffer.containsKey(closestTimestamp)) {
+      List<double> imuDataMobile = _mobileIMUBuffer.remove(closestTimestamp)!;
+      List<double> imuDataBle = _bleIMUBuffer.remove(closestTimestamp)!;
+      _handleIMUData(imuDataMobile, imuDataBle, closestTimestamp);
+
+      // Remove all IMU readings before the matching timestamp
+      _mobileIMUBuffer.removeWhere((key, value) => key < closestTimestamp!);
+      _bleIMUBuffer.removeWhere((key, value) => key < closestTimestamp!);
     }
   }
 
@@ -191,6 +205,13 @@ class _GPSRunScreenState extends State<GPSRunScreen> {
             if (!_isRecording) {
               setState(() {
                 _currentLocation.value = newLocation;
+                //_kalmanFilter = KalmanFilter(_currentLocation.value!); // Reset KalmanFilter for a new recording
+                // Reset the KalmanFilter
+                _kalmanFilter.reset();
+                // Reinitialize the KalmanFilter
+                _kalmanFilter.reinitialize();
+                _currentVelocity.value = 0.0;
+                _currentPace.value = 0.0;
               });
             } else {
               double vx = 0.0;
@@ -721,7 +742,7 @@ class _GPSRunScreenState extends State<GPSRunScreen> {
                               valueListenable: _currentPace,
                               builder: (context, pace, _) {
                                 return Text(
-                                  'Current Pace: ${pace.toString()} min/km',
+                                  'Current Pace: ${pace.toStringAsFixed(3)} min/km',
                                   style: TextStyle(
                                     fontSize: 16,
                                     fontWeight: FontWeight.bold,
@@ -734,7 +755,7 @@ class _GPSRunScreenState extends State<GPSRunScreen> {
                               valueListenable: _currentVelocity,
                               builder: (context, velocity, _) {
                                 return Text(
-                                  'Current Velocity: ${velocity.toString()} m/s',
+                                  'Current Velocity: ${velocity.toStringAsFixed(3)} m/s',
                                   style: TextStyle(
                                     fontSize: 16,
                                     fontWeight: FontWeight.bold,

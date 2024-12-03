@@ -19,12 +19,21 @@ class IMUReader {
   Stream<Map<String, dynamic>> get accelerometerStream => _accelerometerController.stream;
   Stream<Map<String, dynamic>> get gyroscopeStream => _gyroscopeController.stream;
   Stream<Map<String, dynamic>> get magnetometerStream => _magnetometerController.stream;
+  final Duration _sensorInterval = SensorInterval.normalInterval; // Default interval
+
 
   void _initialize() {
+    print('Sensor interval: $_sensorInterval');
+    userAccelerometerEventStream().listen((UserAccelerometerEvent event) {
+      final int timestamp = DateTime.now().microsecondsSinceEpoch;
+      _accelerometerController.add({'timestamp': timestamp, 'data': [event.x, event.y, event.z]});
+    });
+    /*
     accelerometerEventStream().listen((AccelerometerEvent event) {
       final int timestamp = DateTime.now().microsecondsSinceEpoch;
       _accelerometerController.add({'timestamp': timestamp, 'data': [event.x, event.y, event.z]});
     });
+    */
     gyroscopeEventStream().listen((GyroscopeEvent event) {
       final int timestamp = DateTime.now().microsecondsSinceEpoch;
       _gyroscopeController.add({'timestamp': timestamp, 'data': (event.x, event.y, event.z)});
