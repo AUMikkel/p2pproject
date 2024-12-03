@@ -234,9 +234,11 @@ class _GPSRunScreenState extends State<GPSRunScreen> {
               _previousLocation = newLocation;
               _previousTimestamp = currentTimestamp;
 
-              double speed = sqrt(_kalmanFilter.state[2] * _kalmanFilter.state[2] + _kalmanFilter.state[3] * _kalmanFilter.state[3]);
-              double pace = (speed > 0.0) ? (1000 / speed) / 60 : 0;
+              //double speed = sqrt(_kalmanFilter.state[2] * _kalmanFilter.state[2] + _kalmanFilter.state[3] * _kalmanFilter.state[3]);
+              //double pace = (speed > 0.0) ? (1000 / speed) / 60 : 0;
 
+              double speed = sqrt(vx*vx + vy*vy);
+              double pace = (speed > 0.0) ? (1000 / speed) / 60 : 0;
               if (pace.isFinite && pace > 0) {
                 _currentPace.value = pace;
               } else {

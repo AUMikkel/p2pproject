@@ -26,7 +26,7 @@ class KalmanFilter {
   KalmanFilter(this._referencePoint) {
     double accelerometerRMSNoise = 100 * 1e-6 * 9.81; // Convert 100 µg/√Hz to m/s²
     double sensorVariance = accelerometerRMSNoise * accelerometerRMSNoise; // Sensor variance
-    double processVariance = 0.01; // Process variance
+    double processVariance = 0.1; // Process variance
 
     // Initialize matrices
     for (int i = 0; i < 4; i++) {
@@ -40,10 +40,13 @@ class KalmanFilter {
     // Represents the uncertainty in the sensor measurements.
     // A value of 0.1 indicates a small amount of measurement noise.
     // Update the measurement noise covariance matrix R
-    _R[0][0] = sensorVariance; // x position noise
-    _R[1][1] = sensorVariance; // y position noise
-    _R[2][2] = sensorVariance; // x velocity noise
-    _R[3][3] = sensorVariance; // y velocity noise
+    _R[0][0] = sensorVariance * 0.5; // x position noise
+    _R[1][1] = sensorVariance * 0.5; // y position noise
+    _R[2][2] = sensorVariance * 0.1; // x velocity noise
+    _R[3][3] = sensorVariance * 0.1; // y velocity noise
+
+    _P[2][2] = 10.0; // x velocity uncertainty
+    _P[3][3] = 10.0; // y velocity uncertainty
   }
 
   void reset() {
@@ -59,7 +62,7 @@ class KalmanFilter {
   void reinitialize() {
     double accelerometerRMSNoise = 100 * 1e-6 * 9.81; // Convert 100 µg/√Hz to m/s²
     double sensorVariance = accelerometerRMSNoise * accelerometerRMSNoise; // Sensor variance
-    double processVariance = 0.01; // Process variance
+    double processVariance = 0.1; // Process variance
 
     // Initialize matrices
     for (int i = 0; i < 4; i++) {
@@ -73,10 +76,10 @@ class KalmanFilter {
     // Represents the uncertainty in the sensor measurements.
     // A value of 0.1 indicates a small amount of measurement noise.
     // Update the measurement noise covariance matrix R
-    _R[0][0] = sensorVariance; // x position noise
-    _R[1][1] = sensorVariance; // y position noise
-    _R[2][2] = sensorVariance; // x velocity noise
-    _R[3][3] = sensorVariance; // y velocity noise
+    _R[0][0] = sensorVariance * 500; // x position noise
+    _R[1][1] = sensorVariance * 500; // y position noise
+    _R[2][2] = sensorVariance * 500; // x velocity noise
+    _R[3][3] = sensorVariance * 500; // y velocity noise
   }
 
   void predict(List<double> imuData, double dt) {
@@ -143,7 +146,7 @@ class KalmanFilter {
     } else {
       K = _matrixMultiply(_P, _matrixMultiply(Ht, _pseudoinverse(S)));
     }
-
+    print('Kalman gain: $K');
     // Update state: x_{k|k} = x_{k|k-1} + K_k y_k
     for (int i = 0; i < 4; i++) {
       for (int j = 0; j < 4; j++) {
