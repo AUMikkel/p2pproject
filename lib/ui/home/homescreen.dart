@@ -5,7 +5,7 @@ import '../../services/ActivityRecognitionService.dart';
 import '../profile/StatsScreen.dart';
 import '../profile/profile.dart';
 import '../rundetails/RecentRunsScreen.dart';
-import '../rundetails/RecordRunsScreen.dart';
+import '../rundetails/BleScanConnectionScreen.dart';
 import '../shared/UserSession.dart';
 
 class HomeScreen extends StatefulWidget {

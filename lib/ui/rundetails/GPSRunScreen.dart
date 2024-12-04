@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:flutter_activity_recognition/models/activity.dart';
 import 'package:flutter_map/flutter_map.dart';
@@ -7,10 +8,17 @@ import 'package:latlong2/latlong.dart';
 import 'package:location/location.dart';
 import 'package:audioplayers/audioplayers.dart';
 import '../../services/ActivityRecognitionService.dart';
+import '../../services/BleNotificationService.dart';
+import '../rundetails/BleScanConnectionScreen.dart';
+import 'package:flutter_blue_plus/flutter_blue_plus.dart';
 import '../../services/sendRunData.dart';
 import 'package:http/http.dart' as http;
 import '../shared/UserSession.dart';
 import 'package:flutter_tts/flutter_tts.dart';
+import '../../sensors/IMUReader.dart';
+import '../../utils/KalmanFilter.dart';
+import 'dart:io';
+import 'package:path_provider/path_provider.dart';
 
 class GPSRunScreen extends StatefulWidget {
   @override
@@ -18,11 +26,14 @@ class GPSRunScreen extends StatefulWidget {
 }
 
 class _GPSRunScreenState extends State<GPSRunScreen> {
+  final IMUReader imuReader = IMUReader();
+  late final KalmanFilter _kalmanFilter;
   final Location _location = Location();
   final AudioPlayer _audioPlayer = AudioPlayer(); // Initialize the audio player
   late final ActivityRecognitionService _activityService;
   List<Map<String, dynamic>> _checkpoints = [];
   bool _isRecording = false;
+  bool _isWaitingForStartSignal = false; // Add this line
   bool _isLoadingLocation = true;
 
   ValueNotifier<List<LatLng>> _route = ValueNotifier<List<LatLng>>([]);
@@ -32,6 +43,8 @@ class _GPSRunScreenState extends State<GPSRunScreen> {
   StreamSubscription<LocationData>? _locationSubscription;
   StreamSubscription<Activity>? _activitySubscription;
   FlutterTts _flutterTts = FlutterTts();
+  StreamSubscription<Map<String, dynamic>>? _accelerometerSubscription;
+  StreamSubscription<Map<String, dynamic>>? _bleIMUDataSubscription;
   Stopwatch _stopwatch = Stopwatch(); // Track elapsed time
   double _totalDistance = 0.0; // Track total distance in kilometers
   double _paceThreshold = 7.0; // Threshold pace in minutes per kilometer
@@ -46,7 +59,28 @@ class _GPSRunScreenState extends State<GPSRunScreen> {
     await _flutterTts.stop(); // Stop any ongoing speech before starting new
     await _flutterTts.speak(message);
   }
+  bool _isBleConnected = false;
+
+  // Text for the button at then buttom of the screen
+  String _buttonText = 'Start Run'; // Initialize button text
+
   StreamSubscription<LocationData>? _continuousLocationSubscription;
+
+  LatLng? _previousLocation; // Define _previousLocation
+  int? _previousTimestamp; // Define _previousTimestamp
+
+  // Add these variables to your _GPSRunScreenState class
+  List<String> _logEntries = [];
+
+  // Buffers for IMU data
+  Map<int, List<double>> _mobileIMUBuffer = {};
+  Map<int, List<double>> _bleIMUBuffer = {};
+
+  ValueNotifier<double> _currentPace = ValueNotifier<double>(0.0);
+  ValueNotifier<double> _currentVelocity = ValueNotifier<double>(0.0);
+
+  int? _lastTimestamp;
+
   @override
   void initState() {
     super.initState();
@@ -58,8 +92,125 @@ class _GPSRunScreenState extends State<GPSRunScreen> {
         _currentActivity.value = activity.type.toString().split('.').last;
       }
     });
+
+    _checkBleConnection();
     _startContinuousLocationUpdates();
     _getInitialLocation();
+
+
+    _accelerometerSubscription = imuReader.accelerometerStream.listen((data) {
+      if (_isRecording){
+        //print('IMU Data mobile: ${data['data']}');
+        int timestamp = data['timestamp'];
+        _mobileIMUBuffer[timestamp] = data['data'];
+        _combineIMUData(timestamp);
+      }
+    });
+
+    _bleIMUDataSubscription = BleNotificationService().imuDataStream.listen((data) {
+      if (_isRecording) {
+        //print('IMU Data ble: ${data['data']}');
+        // Assuming that it has the right unit
+        // Convert raw readings (in LSBs) to m/s2m/s2: Acceleration in m/s²=(Raw reading)×(Sensitivity Scale Factor)×9.8Acceleration in m/s²=(Raw reading)×(Sensitivity Scale Factor)×9.8.
+        int timestamp = data['timestamp'];
+        _bleIMUBuffer[timestamp] = _parseIMUData(data['data']);
+        _combineIMUData(timestamp);
+      }
+    });
+
+  }
+
+  // Function to log data
+  void _logData(double pace, double velocity, double distance) {
+    int timestamp = DateTime.now().millisecondsSinceEpoch;
+    String logEntry = 'Timestamp: $timestamp, Pace: ${pace.toStringAsFixed(3)} min/km, Velocity: ${velocity.toStringAsFixed(3)} m/s, Distance: ${distance.toStringAsFixed(2)} m';
+    _logEntries.add(logEntry);
+    print(logEntry); // Optional: Print log entry to console
+  }
+
+// Function to save log to a file
+  Future<void> _saveLogToFile() async {
+    final directory = await getExternalStorageDirectory();
+    final file = File('${directory!.path}/run_log.txt');
+    await file.writeAsString(_logEntries.join('\n'));
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('Log saved to ${file.path}'),
+        backgroundColor: Colors.green,
+      ),
+    );
+  }
+
+  void _combineIMUData(int timestamp) {
+    const int imuFrequencyHz = 50; // Frequency of your IMU for the mobile device
+    final int tolerance = (1 / imuFrequencyHz * 1000000).toInt(); // Tolerance in microseconds
+    const int propagationDelay = 62598; // Propagation delay in microseconds
+
+    // Only proceed if there is data in the BLE IMU buffer
+    if (_bleIMUBuffer.isEmpty) {
+      return;
+    }
+
+    int adjustedTimestamp = timestamp - propagationDelay;
+
+    int? closestTimestamp;
+    int minDifference = tolerance;
+
+    // Find the closest timestamp in the mobile IMU buffer
+    for (int t in _mobileIMUBuffer.keys) {
+      int difference = (t - adjustedTimestamp).abs();
+      if (difference <= tolerance && difference < minDifference) {
+        minDifference = difference;
+        closestTimestamp = t;
+      }
+    }
+    // If a matching timestamp is found, combine the IMU data
+    if (closestTimestamp != null && _bleIMUBuffer.containsKey(closestTimestamp)) {
+      List<double> imuDataMobile = _mobileIMUBuffer.remove(closestTimestamp)!;
+      List<double> imuDataBle = _bleIMUBuffer.remove(closestTimestamp)!;
+      _handleIMUData(imuDataMobile, imuDataBle, closestTimestamp);
+
+      // Remove all IMU readings before the matching timestamp
+      _mobileIMUBuffer.removeWhere((key, value) => key < closestTimestamp!);
+      _bleIMUBuffer.removeWhere((key, value) => key < closestTimestamp!);
+    }
+  }
+
+  double _getDeltaTime(int timestamp) {
+    if (_lastTimestamp == null) {
+      _lastTimestamp = timestamp;
+      return 0.0;
+    }
+    double deltaTime = (timestamp - _lastTimestamp!) / 1000000.0;
+    _lastTimestamp = timestamp;
+    return deltaTime;
+  }
+
+  void _handleIMUData(List<double> imuDataMobile, List<double> imuDataBle, int timestamp) {
+    double deltaTime = _getDeltaTime(timestamp);
+    print('DeltaTime: $deltaTime s');
+    // Weighted averaging of IMU data
+    double weightMobile = 1.0; // Adjust weights as needed
+    double weightBle = 0.0;
+    List<double> fusedIMUData = [
+      weightMobile * imuDataMobile[0] + weightBle * imuDataBle[0], // ax
+      weightMobile * imuDataMobile[1] + weightBle * imuDataBle[1]  // ay
+    ];
+
+    _kalmanFilter.predict(fusedIMUData, deltaTime);
+  }
+
+  List<double> _parseIMUData(String message) {
+    // Remove parentheses and split the string by commas
+    List<String> parts = message.replaceAll('(', '').replaceAll(')', '').split(',');
+    return parts.map((part) {
+      try {
+        return double.parse(part);
+      } catch (e) {
+        print('Error parsing double: $part');
+        return 0.0; // Default value in case of error
+      }
+    }).toList();
   }
 
   @override
@@ -67,6 +218,9 @@ class _GPSRunScreenState extends State<GPSRunScreen> {
     _isDisposed = true;
     _locationSubscription?.cancel();
     _activitySubscription?.cancel();
+    _accelerometerSubscription?.cancel();
+    _bleIMUDataSubscription?.cancel();
+    imuReader.dispose();
     _route.dispose();
     _currentLocation.dispose();
     _currentActivity.dispose();
@@ -75,26 +229,118 @@ class _GPSRunScreenState extends State<GPSRunScreen> {
     _flutterTts.stop();
     super.dispose();
   }
+
   Future<void> _startContinuousLocationUpdates() async {
-    // Ensure location permissions are granted
     if (await _location.requestPermission() == PermissionStatus.granted) {
       _continuousLocationSubscription = _location.onLocationChanged.listen(
             (locationData) {
           if (locationData.latitude != null && locationData.longitude != null) {
             LatLng newLocation = LatLng(locationData.latitude!, locationData.longitude!);
+            int currentTimestamp = DateTime.now().millisecondsSinceEpoch;
 
-            // Update the current location
             if (!_isRecording) {
-              // Only update the current location when not recording
               setState(() {
                 _currentLocation.value = newLocation;
+                //_kalmanFilter = KalmanFilter(_currentLocation.value!); // Reset KalmanFilter for a new recording
+                // Reset the KalmanFilter
+                _kalmanFilter.reset();
+                // Reinitialize the KalmanFilter
+                _kalmanFilter.reinitialize();
+                _currentVelocity.value = 0.0;
+                _currentPace.value = 0.0;
               });
+            } else {
+              double vx = 0.0;
+              double vy = 0.0;
+
+              if (_previousLocation != null && _previousTimestamp != null) {
+                double deltaTime = (currentTimestamp - _previousTimestamp!) / 1000.0;
+                if (deltaTime <= 0.1 || deltaTime > 10.0) {
+                  return;
+                }
+                double distance = const Distance().as(LengthUnit.Meter, _previousLocation!, newLocation);
+                double bearing = const Distance().bearing(_previousLocation!, newLocation);
+
+                vx = (distance / deltaTime) * cos(bearing * pi / 180.0);
+                vy = (distance / deltaTime) * sin(bearing * pi / 180.0);
+              }
+
+              _kalmanFilter.updateWithGPS(newLocation, vx, vy);
+
+              _previousLocation = newLocation;
+              _previousTimestamp = currentTimestamp;
+
+              //double speed = sqrt(_kalmanFilter.state[2] * _kalmanFilter.state[2] + _kalmanFilter.state[3] * _kalmanFilter.state[3]);
+              //double pace = (speed > 0.0) ? (1000 / speed) / 60 : 0;
+
+              double speed = sqrt(vx*vx + vy*vy);
+              double pace = (speed > 0.0) ? (1000 / speed) / 60 : 0;
+              if (pace.isFinite && pace > 0) {
+                _currentPace.value = pace;
+              } else {
+                _currentPace.value = 0.0;
+              }
+              print('Pace: ${pace} min/km');
+              print('Speed: ${speed} min/km');
+
+              _currentVelocity.value = speed;
+
+              // Log the data'
+              print('Pace: $pace min/km, Speed: $speed m/s, Distance: $_totalDistance m');
+              _logData(pace, speed, _totalDistance);
             }
           }
         },
       );
     }
   }
+
+  Future<void> _checkBleConnection() async {
+    // Implement your logic to check if the BLE device is connected
+    // For example, you can use a service or a method that returns the connection status
+    bool isConnected = await checkBleConnectionStatus();
+    setState(() {
+      _isBleConnected = isConnected;
+    });
+
+    if (!_isBleConnected) {
+      _showBleConnectionPrompt();
+    }
+  }
+
+  Future<bool> checkBleConnectionStatus() async {
+    List<BluetoothDevice> connectedDevices = await FlutterBluePlus.connectedDevices;
+    for (BluetoothDevice device in connectedDevices) {
+      if (device.name == 'M5UiFlow') {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  void _showBleConnectionPrompt() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Not Connected to Bluetooth Device',
+          style: TextStyle(color: Colors.white)),
+        content: const Text('Please connect to your Bluetooth device to continue.',
+            style: TextStyle(color: Colors.white)),
+        actions: [
+          TextButton(
+            onPressed: () {
+              Navigator.of(context).pop();
+              Navigator.of(context).push(
+                MaterialPageRoute(builder: (context) => BleScanConnectionScreen()),
+              );
+            },
+            child: Text('Connect'),
+          ),
+        ],
+      ),
+    );
+  }
+
 
   Future<void> _getInitialLocation() async {
     if (await _location.requestPermission() == PermissionStatus.granted) {
@@ -103,6 +349,7 @@ class _GPSRunScreenState extends State<GPSRunScreen> {
         _currentLocation.value = LatLng(locationData.latitude!, locationData.longitude!);
         setState(() {
           _isLoadingLocation = false;
+          _kalmanFilter = KalmanFilter(_currentLocation.value!); // Initialize KalmanFilter
         });
       }
     }
@@ -115,6 +362,8 @@ class _GPSRunScreenState extends State<GPSRunScreen> {
       final jsonData = jsonDecode(response.body); // Parse JSON response
       if (jsonData['success'] == true && jsonData['routes'] is List) {
         // Extract the "routes" list from the JSON response
+        print(response.body);
+        //print('Fetched ${jsonData['routes'].length} ghost routes.');
         return List<Map<String, dynamic>>.from(jsonData['routes']);
       } else {
         throw Exception('Invalid data format or no routes found.');
@@ -157,6 +406,17 @@ class _GPSRunScreenState extends State<GPSRunScreen> {
                 });
                 Navigator.pop(context);
               },
+            onTap: () {
+            //print("Route ID type: ${route['id'].runtimeType}"); // Debug type
+            setState(() {
+            _selectedGhostRouteId = route['id']?.toString(); // Safely convert to String
+            _selectedGhostData = {
+              ...route,
+              'checkpoints': route['checkpoints'] ?? []
+            }; // Store selected route data
+            });
+            Navigator.pop(context);
+            },
             );
           },
         );
@@ -185,7 +445,7 @@ class _GPSRunScreenState extends State<GPSRunScreen> {
         setState(() {
           _ghostProgressMessage = 'Run completed! All checkpoints passed.';
           _isRunCompleted = true; // Mark the run as completed
-          print('Run completed! All checkpoints passed.');
+          //print('Run completed! All checkpoints passed.');
         });
       }
       return;
@@ -203,7 +463,7 @@ class _GPSRunScreenState extends State<GPSRunScreen> {
 
       setState(() {
         if (timeDifference > 0) {
-          print('You are behind by $timeDifference seconds.');
+          //print('You are behind by $timeDifference seconds.');
           _ghostProgressMessage = 'You are behind by $timeDifference seconds.';
           final message = 'You are behind by $timeDifference seconds.';
           print(message);
@@ -215,6 +475,12 @@ class _GPSRunScreenState extends State<GPSRunScreen> {
           print(message);
           _ghostProgressMessage = message;
           _speak(message);
+          //_audioPlayer.play(AssetSource('behind.wav'));
+        } else {
+          //print('You are ahead by ${timeDifference.abs()} seconds.');
+          _ghostProgressMessage =
+          'You are ahead by ${timeDifference.abs()} seconds.';
+          //_audioPlayer.play(AssetSource('pacesound.wav'));
         }
       });
 
@@ -240,11 +506,42 @@ class _GPSRunScreenState extends State<GPSRunScreen> {
   Future<void> _toggleRecording() async {
     if (_isRecording) {
       // Stop recording
+      _stopRecording();
+    } else {
+      // Start recording
+      setState(() {
+        _isWaitingForStartSignal = true; // Set waiting state
+        _buttonText = 'Waiting for start signal'; // Update button text
+      });
+      await _startRecording();
+    }
+  }
 
+  Future<void> _startRecording() async {
+    // Wait for the "Run started" message
+    await _waitForRunStartedMessage();
 
-      _locationSubscription?.cancel();
-      _stopwatch.stop();
-      setState(() => _isRecording = false);
+    // Start logging location data
+    _stopwatch.start();
+    _locationSubscription = _location.onLocationChanged.listen((locationData) {
+      if (locationData.latitude != null && locationData.longitude != null) {
+        LatLng newPoint = LatLng(locationData.latitude!, locationData.longitude!);
+        if (_route.value.isNotEmpty) {
+          double distanceIncrement = _calculateDistance(_route.value.last, newPoint);
+
+          // Update total distance and UI
+          setState(() {
+            _totalDistance += distanceIncrement; // Increment total distance
+          });
+          if (_checkpoints.isEmpty || _calculateDistance(LatLng(_checkpoints.last['lat'], _checkpoints.last['lng']),
+              newPoint) > 30) { // 30 meter
+            _checkpoints.add({
+              'lat': newPoint.latitude,
+              'lng': newPoint.longitude,
+              'time': _stopwatch.elapsed.inSeconds,
+            });
+          }
+          _totalDistance += _calculateDistance(_route.value.last, newPoint);
 
       // Prepare run data for saving
       final routeData = _route.value.map((point) {
@@ -259,6 +556,70 @@ class _GPSRunScreenState extends State<GPSRunScreen> {
       // Send run data to the server
       final result = sendRunData(
         username: username,
+          // Compare with ghost at each point
+          if (_selectedGhostData != null) {
+            //print('Comparing with ghost...');
+            _compareWithGhost(newPoint, _stopwatch.elapsed.inSeconds);
+          }
+          _checkPaceAndPlaySound();
+        }
+        _currentLocation.value = newPoint;
+        _route.value = [..._route.value, newPoint];
+      }
+    });
+
+    // Listen for the "Run finished" message
+    BleNotificationService().receivedMessagesStream.listen((message) {
+      if (message.contains("Run finished")) {
+        _stopRecording();
+      }
+    });
+
+    // Start listening to IMU data
+    await BleNotificationService().startListeningToIMUData();
+
+    // Start recording logic
+    setState(() {
+      _isRecording = true;
+      _isWaitingForStartSignal = false; // Reset waiting state
+      _buttonText = 'Stop Run';
+    });
+  }
+
+  void _stopRecording() {
+    _locationSubscription?.cancel();
+    _stopwatch.stop();
+    setState(() {
+      _isRecording = false;
+      _buttonText = 'Start Run';
+    });
+
+    // Stop listening to IMU data
+    BleNotificationService().stopListeningToIMUData();
+
+    // Save run data or send it to the server
+    final routeData = _route.value.map((point) {
+      return {"lat": point.latitude, "lng": point.longitude};
+    }).toList();
+
+    final imuData = {}; // Replace with actual IMU data if collected
+    final userSession = UserSession();
+    userSession.getUserData().then((userData) {
+      //print('Sending run data:');
+      /*print({
+        'username': userData['username'], // Replace with actual user ID
+        'start_time': DateTime.now()
+            .subtract(Duration(seconds: _stopwatch.elapsed.inSeconds))
+            .toIso8601String(),
+        'end_time': DateTime.now().toIso8601String(),
+        'total_distance': _totalDistance,
+        'activity_type': _currentActivity.value,
+        'checkpoints': _checkpoints,
+      });*/
+      //print('User data: $userData');
+      String? username = userData['username']; // Debug log
+      sendRunData(
+        username: username, // Replace with actual user ID
         startTime: DateTime.now().subtract(Duration(seconds: _stopwatch.elapsed.inSeconds)),
         endTime: DateTime.now(),
         totalDistance: _totalDistance,
@@ -279,31 +640,15 @@ class _GPSRunScreenState extends State<GPSRunScreen> {
                 TextStyle(color: Colors.white),)));
       }
       resetRecordingState();
-    } else {
-      // Start recording
-      _stopwatch.start();
-      _locationSubscription = _location.onLocationChanged.listen((locationData) {
-        if (locationData.latitude != null && locationData.longitude != null) {
+    });
 
-          LatLng newPoint = LatLng(locationData.latitude!, locationData.longitude!);
-          if (_route.value.isNotEmpty) {
-            double distanceIncrement = _calculateDistance(_route.value.last, newPoint);
+    // Save the log file
+    _saveLogToFile();
+  }
 
-            // Update total distance and UI
-            setState(() {
-              _totalDistance += distanceIncrement; // Increment total distance
-            });
-            if (_checkpoints.isEmpty || _calculateDistance(LatLng(_checkpoints.last['lat'], _checkpoints.last['lng'],),
-                    newPoint) >
-                    30) { // 30 meter
-              _checkpoints.add({
-                'lat': newPoint.latitude,
-                'lng': newPoint.longitude,
-                'time': _stopwatch.elapsed.inSeconds,
-              });
-            }
-            _totalDistance += _calculateDistance(_route.value.last, newPoint);
-
+  Future<void> _waitForRunStartedMessage() async {
+    Completer<void> completer = Completer<void>();
+    StreamSubscription<String>? subscription;
             // Compare with ghost at each point
             if (_selectedGhostData != null) {
               print('Comparing with ghost...');
@@ -318,6 +663,13 @@ class _GPSRunScreenState extends State<GPSRunScreen> {
       });
       setState(() => _isRecording = true);
     }
+    subscription = BleNotificationService().receivedMessagesStream.listen((message) {
+      if (message.contains("Run started")) {
+        completer.complete();
+        subscription?.cancel();
+      }
+    });
+    await completer.future; // Wait for the completer to complete
   }
 
   double _calculateDistance(LatLng point1, LatLng point2) {
@@ -326,6 +678,8 @@ class _GPSRunScreenState extends State<GPSRunScreen> {
   }
   ValueNotifier<String> _currentPace = ValueNotifier<String>("N/A min/km");
   void _checkPaceAndUpdateDisplay() {
+
+  void _checkPaceAndPlaySound_old() {
     if (_totalDistance > 0) {
       double totalDistanceInKm = _totalDistance / 1000.0; // Convert meters to kilometers
       double elapsedMinutes = _stopwatch.elapsed.inSeconds / 60.0;
@@ -339,13 +693,36 @@ class _GPSRunScreenState extends State<GPSRunScreen> {
         _currentPace.value = paceFormatted;
       } else {
         _currentPace.value = "N/A min/km";
+      if (pace > _paceThreshold) {
+        //_playSlowPaceAlert();
       }
     } else {
       _currentPace.value = "N/A min/km";
     }
   }
 
+  void _checkPaceAndPlaySound() {
+    if (_totalDistance > 0) {
+      double vx = _kalmanFilter.state[2];
+      double vy = _kalmanFilter.state[3];
+      double speed = sqrt(vx * vx + vy * vy); // Speed in meters per second
+      const double threshold = 0.1; // Define a small threshold value
+      if (speed < threshold) {
+        speed = 0.0; // Set speed to zero if it is close to zero
+      }
+      double pace = (speed > 0) ? (1000 / speed) / 60 : 0; // Pace in minutes per kilometer
 
+      if (pace > _paceThreshold) {
+        //_playSlowPaceAlert();
+      }
+
+      //('Estimated Pace: $pace min/km');
+    }
+  }
+
+  Future<void> _playSlowPaceAlert() async {
+    await _audioPlayer.play(AssetSource('pacesound.wav')); // Play alert sound
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -438,10 +815,52 @@ class _GPSRunScreenState extends State<GPSRunScreen> {
                     return Card(
                       child: Padding(
                         padding: const EdgeInsets.all(8.0),
-                        child: Text(
-                          'Current Activity: $activity\nTotal Distance: ${_totalDistance.toStringAsFixed(2)} m',
-                          style: TextStyle(
-                              fontSize: 16, fontWeight: FontWeight.bold,color: Colors.red),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Current Activity: $activity',
+                              style: TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.red,
+                              ),
+                            ),
+                            ValueListenableBuilder<double>(
+                              valueListenable: _currentPace,
+                              builder: (context, pace, _) {
+                                return Text(
+                                  'Current Pace: ${pace.toStringAsFixed(3)} min/km',
+                                  style: TextStyle(
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.bold,
+                                    color: Colors.red,
+                                  ),
+                                );
+                              },
+                            ),
+                            ValueListenableBuilder<double>(
+                              valueListenable: _currentVelocity,
+                              builder: (context, velocity, _) {
+                                return Text(
+                                  'Current Velocity: ${velocity.toStringAsFixed(3)} m/s',
+                                  style: TextStyle(
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.bold,
+                                    color: Colors.red,
+                                  ),
+                                );
+                              },
+                            ),
+                            Text(
+                              'Total Distance: ${_totalDistance.toStringAsFixed(2)} m',
+                              style: TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.red,
+                              ),
+                            ),
+                          ],
                         ),
                       ),
                     );
@@ -498,8 +917,13 @@ class _GPSRunScreenState extends State<GPSRunScreen> {
               style: ElevatedButton.styleFrom(
                 backgroundColor: _isRecording ? Colors.red : Colors.green,
               ),
-              child: Text(_isRecording ? 'Stop Recording' : 'Start Recording'),
+              child: Text(_buttonText),
             ),
+          ),
+          const SizedBox(height: 8), // Add some spacing between the buttons
+          ElevatedButton(
+            onPressed: _saveLogToFile,
+            child: Text('Save Log File'),
           ),
         ],
       ),
