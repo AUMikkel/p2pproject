@@ -303,7 +303,7 @@ class _GPSRunScreenState extends State<GPSRunScreen> {
 
               // Send pace to BLE device
               //print('Sending pace to BLE device...');
-              BleNotificationService().sendPaceToBleDevice(_currentPace.value, _paceThreshold);
+              BleNotificationService().sendPaceToBleDevice(_currentPace.value, _paceGhost);
             }
           }
         },
@@ -414,8 +414,8 @@ class _GPSRunScreenState extends State<GPSRunScreen> {
                   double ghostTimeInMinutes = route['total_time'] / 60.0; // Convert seconds to minutes
                   double ghostDistanceInKm = route['total_distance'] / 1000.0; // Convert meters to kilometers
                   if (ghostDistanceInKm > 0) {
-                    _paceThreshold = ghostTimeInMinutes / ghostDistanceInKm;
-                    print("Pace threshold set to $_paceThreshold min/km");
+                    _paceGhost = ghostTimeInMinutes / ghostDistanceInKm;
+                    //print("Pace threshold set to $_paceGhost min/km");
                   }
                 });
                 Navigator.pop(context);
@@ -826,7 +826,7 @@ Future<void> _waitForRunStartedMessage() async {
                             ),
                           const SizedBox(height: 8),
                           Text(
-                            'Ghost Pace: ${_paceThreshold.toStringAsFixed(2)} min/km\n' +
+                            'Ghost Pace: ${_paceGhost.toStringAsFixed(2)} min/km\n' +
                                 'Current Pace: ${_currentPace.value}',
                             style: TextStyle(
                               fontSize: 14,

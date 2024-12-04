@@ -98,7 +98,8 @@ class _BleScanConnectionScreenState extends State<BleScanConnectionScreen> {
         context: context,
         builder: (BuildContext context) {
           return AlertDialog(
-            title: Text('Connected'),
+            title: Text('Connected',
+                style: TextStyle(color: Colors.white)),
             content: Text('Connected to ${device.name}'),
             actions: <Widget>[
               TextButton(

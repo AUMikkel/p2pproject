@@ -97,7 +97,7 @@ class BleNotificationService {
           // Round paces to two decimal places
           final String ownPaceStr = own_pace.toStringAsFixed(2);
           final String ghostPaceStr = ghost_pace.toStringAsFixed(2);
-          final pace = '$ownPaceStr, $ghostPaceStr';
+          final pace = '$ownPaceStr $ghostPaceStr';
           await characteristic.write(pace.codeUnits);
           ////print('Pace tuple sent to BLE device: ${(own_pace.toString() + ", " + ghost_pace.toString())}');
           ////print('Pace tuple sent to BLE device: ${(own_pace.toString() + ", " + ghost_pace.toString()).codeUnits}');
