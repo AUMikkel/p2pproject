@@ -8,7 +8,6 @@ Future<bool> sendRunData({
   required double totalDistance,
   required String activityType,
   required List<Map<String, double>> route,
-  required Map<dynamic, dynamic> imuData,
   required List<Map<String, dynamic>> checkpoints,
 }) async {
   final url = Uri.parse('https://app.dokkedalleth.dk/saveRun.php');
@@ -20,7 +19,6 @@ Future<bool> sendRunData({
     "total_distance": totalDistance,
     "activity_type": activityType,
     "route": route,
-    "imu_data": imuData,
     'checkpoints': checkpoints,
   };
 
@@ -33,6 +31,7 @@ Future<bool> sendRunData({
 
     if (response.statusCode == 200) {
       final responseData = jsonDecode(response.body);
+
       if (responseData['success']) {
         return true;
       } else {

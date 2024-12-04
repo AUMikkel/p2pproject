@@ -40,7 +40,7 @@ class _GPSRunScreenState extends State<GPSRunScreen> {
   void _initializeTts() async {
     await _flutterTts.setLanguage("en-US");
     await _flutterTts.setPitch(1.0); // Normal pitch
-    await _flutterTts.setSpeechRate(0.5); // Slower speech rate
+    await _flutterTts.setSpeechRate(1.0); // Slower speech rate
   }
   Future<void> _speak(String message) async {
     await _flutterTts.stop(); // Stop any ongoing speech before starting new
@@ -198,7 +198,7 @@ class _GPSRunScreenState extends State<GPSRunScreen> {
     final distanceToCheckpoint =
     const Distance().as(LengthUnit.Meter, userLocation, checkpointLatLng);
 
-    if (distanceToCheckpoint < 10) {
+    if (distanceToCheckpoint < 5) {
       final timeDifference = userElapsedTime - ghostTime;
 
       setState(() {
@@ -264,7 +264,6 @@ class _GPSRunScreenState extends State<GPSRunScreen> {
         totalDistance: _totalDistance,
         activityType: _currentActivity.value,
         route: routeData,
-        imuData: imuData,
         checkpoints: _checkpoints,
       );
       if (await result) {

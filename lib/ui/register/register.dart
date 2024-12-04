@@ -31,8 +31,8 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
 
       final url = Uri.parse('https://app.dokkedalleth.dk/register.php');
       final body = {
-        'username': _nameController.text, // Save the user's name
-        'email': _emailController.text,  // Save the user's email
+        'username': _nameController.text,
+        'email': _emailController.text,
         'password': _passwordController.text,
       };
 
