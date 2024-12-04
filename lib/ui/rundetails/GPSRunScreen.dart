@@ -499,7 +499,7 @@ class _GPSRunScreenState extends State<GPSRunScreen> {
             //print('Comparing with ghost...');
             _compareWithGhost(newPoint, _stopwatch.elapsed.inSeconds);
           }
-          _checkPaceAndPlaySound();
+          _checkPaceAndUpdateDisplay();
         }
         _currentLocation.value = newPoint;
         _route.value = [..._route.value, newPoint];
@@ -524,7 +524,7 @@ class _GPSRunScreenState extends State<GPSRunScreen> {
     });
   }
 
-  void _stopRecording() {
+  Future<void> _stopRecording() async {
     _locationSubscription?.cancel();
     _stopwatch.stop();
     setState(() {
@@ -567,46 +567,7 @@ class _GPSRunScreenState extends State<GPSRunScreen> {
                 TextStyle(color: Colors.white),)));
       }
       resetRecordingState();
-    } else {
-      // Start recording
-      _stopwatch.start();
-      _locationSubscription = _location.onLocationChanged.listen((locationData) {
-        if (locationData.latitude != null && locationData.longitude != null) {
-
-          LatLng newPoint = LatLng(locationData.latitude!, locationData.longitude!);
-          if (_route.value.isNotEmpty) {
-            double distanceIncrement = _calculateDistance(_route.value.last, newPoint);
-
-            // Update total distance and UI
-            setState(() {
-              _totalDistance += distanceIncrement; // Increment total distance
-            });
-            if (_checkpoints.isEmpty || _calculateDistance(LatLng(_checkpoints.last['lat'], _checkpoints.last['lng'],),
-                    newPoint) >
-                    30) { // 30 meter
-              _checkpoints.add({
-                'lat': newPoint.latitude,
-                'lng': newPoint.longitude,
-                'time': _stopwatch.elapsed.inSeconds,
-              });
-            }
-            _totalDistance += _calculateDistance(_route.value.last, newPoint);
-
-            // Compare with ghost at each point
-            if (_selectedGhostData != null) {
-              print('Comparing with ghost...');
-              _compareWithGhost(newPoint, _stopwatch.elapsed.inSeconds);
-            }
-          }
-          _currentLocation.value = newPoint;
-          _route.value = [..._route.value, newPoint];
-
-          _checkPaceAndUpdateDisplay();
-        }
-      });
-      setState(() => _isRecording = true);
     }
-  }
 
 Future<void> _waitForRunStartedMessage() async {
   Completer<void> completer = Completer<void>();
@@ -625,8 +586,9 @@ Future<void> _waitForRunStartedMessage() async {
     const Distance distance = Distance();
     return distance.as(LengthUnit.Meter, point1, point2); // Distance in meters
   }
-  ValueNotifier<String> _currentPace = ValueNotifier<String>("N/A min/km");
+  ValueNotifier<String> _currentPacestring = ValueNotifier<String>("N/A min/km");
   void _checkPaceAndUpdateDisplay() {
+
     if (_totalDistance > 0) {
       double totalDistanceInKm = _totalDistance / 1000.0; // Convert meters to kilometers
       double elapsedMinutes = _stopwatch.elapsed.inSeconds / 60.0;
@@ -637,16 +599,14 @@ Future<void> _waitForRunStartedMessage() async {
         String paceFormatted = "${pace.floor()}:${((pace % 1) * 60).toStringAsFixed(0).padLeft(2, '0')} min/km";
 
         // Update the current pace
-        _currentPace.value = paceFormatted;
+        _currentPacestring.value = paceFormatted;
       } else {
-        _currentPace.value = "N/A min/km";
+        _currentPacestring.value = "N/A min/km";
       }
     } else {
-      _currentPace.value = "N/A min/km";
+      _currentPacestring.value = "N/A min/km";
     }
   }
-
-
 
   @override
   Widget build(BuildContext context) {
