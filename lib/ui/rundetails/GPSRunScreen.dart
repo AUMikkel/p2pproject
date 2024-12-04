@@ -66,6 +66,16 @@ class _GPSRunScreenState extends State<GPSRunScreen> {
     await _flutterTts.stop(); // Stop any ongoing speech before starting new
     await _flutterTts.speak(message);
   }
+
+  Future<Directory?> getLogDirectory() async {
+    if (Platform.isAndroid) {
+      return await getExternalStorageDirectory();
+    } else if (Platform.isIOS) {
+      return await getApplicationDocumentsDirectory();
+    } else {
+      throw UnsupportedError("This platform is not supported");
+    }
+  }
   StreamSubscription<LocationData>? _continuousLocationSubscription;
 
   LatLng? _previousLocation; // Define _previousLocation
@@ -132,15 +142,27 @@ class _GPSRunScreenState extends State<GPSRunScreen> {
 
 // Function to save log to a file
   Future<void> _saveLogToFile() async {
-    final directory = await getExternalStorageDirectory();
-    final file = File('${directory!.path}/run_log.txt');
-    await file.writeAsString(_logEntries.join('\n'));
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('Log saved to ${file.path}'),
-        backgroundColor: Colors.green,
-      ),
-    );
+    try {
+      final directory = await getLogDirectory();
+      if (directory == null) {
+        throw Exception("Unable to determine directory");
+      }
+      final file = File('${directory.path}/run_log.txt');
+      await file.writeAsString(_logEntries.join('\n'));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Log saved to ${file.path}'),
+          backgroundColor: Colors.green,
+        ),
+      );
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Failed to save log: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
   }
 
   void _combineIMUData(int timestamp) {
@@ -599,7 +621,6 @@ class _GPSRunScreenState extends State<GPSRunScreen> {
                 TextStyle(color: Colors.white),)));
       }
       resetRecordingState();
-    });
 
     // Save the log file
     _saveLogToFile();

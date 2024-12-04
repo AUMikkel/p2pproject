@@ -55,6 +55,7 @@ dependencies:
   vector_math: ^2.1.4
   flutter_tts: ^4.2.0
   connectivity_plus: ^6.1.0
+  share_plus: ^10.1.2
 
 
 
