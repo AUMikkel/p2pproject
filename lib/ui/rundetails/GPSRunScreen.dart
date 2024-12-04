@@ -121,8 +121,8 @@ class _GPSRunScreenState extends State<GPSRunScreen> {
 
 // Function to save log to a file
   Future<void> _saveLogToFile() async {
-    final directory = await getApplicationDocumentsDirectory();
-    final file = File('${directory.path}/run_log.txt');
+    final directory = await getExternalStorageDirectory();
+    final file = File('${directory!.path}/run_log.txt');
     await file.writeAsString(_logEntries.join('\n'));
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
@@ -275,7 +275,8 @@ class _GPSRunScreenState extends State<GPSRunScreen> {
 
               _currentVelocity.value = speed;
 
-              // Log the data
+              // Log the data'
+              print('Pace: $pace min/km, Speed: $speed m/s, Distance: $_totalDistance m');
               _logData(pace, speed, _totalDistance);
             }
           }
@@ -847,6 +848,11 @@ class _GPSRunScreenState extends State<GPSRunScreen> {
               ),
               child: Text(_buttonText),
             ),
+          ),
+          const SizedBox(height: 8), // Add some spacing between the buttons
+          ElevatedButton(
+            onPressed: _saveLogToFile,
+            child: Text('Save Log File'),
           ),
         ],
       ),
