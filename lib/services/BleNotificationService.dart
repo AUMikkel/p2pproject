@@ -61,7 +61,7 @@ class BleNotificationService {
 
   Future<void> startListeningToIMUData() async {
     if (_connectedDevice == null) {
-      print('No connected device.');
+      //print('No connected device.');
       return;
     }
 
@@ -82,6 +82,30 @@ class BleNotificationService {
       }
     }
   }
+
+  void sendPaceToBleDevice(double own_pace, double ghost_pace) async {
+    if (_connectedDevice == null) {
+      //print('No connected device.');
+      return;
+    }
+
+    final List<BluetoothService> services = await _connectedDevice!.discoverServices();
+    for (BluetoothService service in services) {
+      for (BluetoothCharacteristic characteristic in service.characteristics) {
+        if (characteristic.properties.write &&
+            characteristic.uuid.toString().toUpperCase() == "AE4B02CC-DF79-6EF4-51D8-36EB0E0B0F13") {
+          // Round paces to two decimal places
+          final String ownPaceStr = own_pace.toStringAsFixed(2);
+          final String ghostPaceStr = ghost_pace.toStringAsFixed(2);
+          final pace = '$ownPaceStr $ghostPaceStr';
+          await characteristic.write(pace.codeUnits);
+          ////print('Pace tuple sent to BLE device: ${(own_pace.toString() + ", " + ghost_pace.toString())}');
+          ////print('Pace tuple sent to BLE device: ${(own_pace.toString() + ", " + ghost_pace.toString()).codeUnits}');
+        }
+      }
+    }
+  }
+
 
   /*
   Future<void> startListeningToNotifications(BluetoothDevice device) async {
@@ -107,7 +131,7 @@ class BleNotificationService {
                   break;
               }
             } catch (e) {
-              print('Error during synchronization: $e');
+              //print('Error during synchronization: $e');
             } finally {
               _isProcessing = false;
             }
@@ -123,15 +147,15 @@ class BleNotificationService {
       final int T1 = int.parse(message);
       final int T2 = DateTime.now().microsecondsSinceEpoch;
 
-      print('T1: $T1');
-      print('T2: $T2');
+      //print('T1: $T1');
+      //print('T2: $T2');
 
       // Take T3 just before sending the value
       final int T3 = DateTime.now().microsecondsSinceEpoch;
       try {
         await characteristic.write(T3.toString().codeUnits);
-        print('T3: $T3');
-        print('Successfully sent T3 to BLE device');
+        //print('T3: $T3');
+        //print('Successfully sent T3 to BLE device');
 
         // Save T1, T2, T3 for later use
         _clockSyncList.clear();
@@ -140,11 +164,11 @@ class BleNotificationService {
         // Proceed to the next state
         _syncState = SyncState.WaitingForT4;
       } catch (e) {
-        print('Failed to send T3: $e');
+        //print('Failed to send T3: $e');
         _resetSynchronization(); // Reset the synchronization process
       }
     } catch (e) {
-      print('Error in synchronization: $e');
+      //print('Error in synchronization: $e');
       _resetSynchronization(); // Reset state on unexpected error
     }
   }
@@ -152,13 +176,13 @@ class BleNotificationService {
   void _resetSynchronization() {
     _syncState = SyncState.WaitingForT1; // Reset state machine
     _clockSyncList.clear(); // Clear any partial data
-    print('Synchronization process reset.');
+    //print('Synchronization process reset.');
   }
 
   Future<void> _handleSecondPhase(String message) async {
     // Parse T4 from the BLE message
     final int T4 = int.parse(message);
-    print('T4: $T4');
+    //print('T4: $T4');
 
     // Retrieve T1, T2, T3 from the list
     final int T1 = _clockSyncList[0];
@@ -169,8 +193,8 @@ class BleNotificationService {
     final double delta = ((T2*1000 - T1) - (T4-1000000 - T3*1000)) / 2.0;
     final double delay = ((T2*1000 - T1) + (T4-1000000 - T3*1000)) / 2.0;
 
-    print('Clock Offset (Δ): $delta µs');
-    print('Propagation Delay (d): $delay µs');
+    //print('Clock Offset (Δ): $delta µs');
+    //print('Propagation Delay (d): $delay µs');
 
     // Log the synchronization data
     final String logEntry = '$T1, $T2, $T3, $T4, Δ: $delta, d: $delay';
@@ -191,15 +215,15 @@ class BleNotificationService {
 
         if (await logFile.exists()) {
           await file.writeAsBytes(await logFile.readAsBytes());
-          print('Log file saved to external storage: ${file.path}');
+          //print('Log file saved to external storage: ${file.path}');
         } else {
-          print('Log file does not exist.');
+          //print('Log file does not exist.');
         }
       } else {
-        print('Storage permission not granted.');
+        //print('Storage permission not granted.');
       }
     } catch (e) {
-      print('Error saving log file: $e');
+      //print('Error saving log file: $e');
     }
   }
 

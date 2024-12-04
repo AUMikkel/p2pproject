@@ -83,8 +83,8 @@ class KalmanFilter {
   }
 
   void predict(List<double> imuData, double dt) {
-    print('Predicting state with IMU data: $imuData');
-    print('Time step: $dt');
+    //print('Predicting state with IMU data: $imuData');
+    //print('Time step: $dt');
     // Update state transition matrix F
     _F[0][0] = 1.0;
     _F[0][2] = dt;
@@ -99,8 +99,8 @@ class KalmanFilter {
     _G[2][0] = dt;
     _G[3][1] = dt;
 
-    print('State transition matrix F: $_F');
-    print('Control input matrix G: $_G');
+    //print('State transition matrix F: $_F');
+    //print('Control input matrix G: $_G');
 
     // Control input vector u (IMU acceleration data)
     List<double> u = imuData.sublist(0, 2); // [ax, ay]
@@ -125,8 +125,8 @@ class KalmanFilter {
   }
 
   void update(List<double> gpsData) {
-    print("Before update - State: $_state");
-    print("GPS Data: $gpsData");
+    //print("Before update - State: $_state");
+    //print("GPS Data: $gpsData");
     // Measurement residual: y_k = z_k - H x_{k|k-1}
     List<double> y = List.filled(4, 0.0);
     for (int i = 0; i < 4; i++) {
@@ -146,7 +146,7 @@ class KalmanFilter {
     } else {
       K = _matrixMultiply(_P, _matrixMultiply(Ht, _pseudoinverse(S)));
     }
-    print('Kalman gain: $K');
+    //print('Kalman gain: $K');
     // Update state: x_{k|k} = x_{k|k-1} + K_k y_k
     for (int i = 0; i < 4; i++) {
       for (int j = 0; j < 4; j++) {
@@ -159,7 +159,7 @@ class KalmanFilter {
     // Update covariance: P_{k|k} = (I - K_k H) P_{k|k-1}
     List<List<double>> I = _identityMatrix(4);
     _P = _matrixMultiply(_matrixSubtract(I, _matrixMultiply(K, _H)), _P);
-    print("After update - Updated State: $_state");
+    //print("After update - Updated State: $_state");
   }
 
   // Helper functions for matrix operations

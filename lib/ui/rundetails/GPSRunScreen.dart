@@ -300,6 +300,10 @@ class _GPSRunScreenState extends State<GPSRunScreen> {
 
               // Log the data's pace, speed, and distance
               _logData(pace, speed, _totalDistance);
+
+              // Send pace to BLE device
+              //print('Sending pace to BLE device...');
+              BleNotificationService().sendPaceToBleDevice(_currentPace.value, _paceGhost);
             }
           }
         },
@@ -411,6 +415,7 @@ class _GPSRunScreenState extends State<GPSRunScreen> {
                   double ghostDistanceInKm = route['total_distance'] / 1000.0; // Convert meters to kilometers
                   if (ghostDistanceInKm > 0) {
                     _paceGhost = ghostTimeInMinutes / ghostDistanceInKm;
+                    //print("Pace threshold set to $_paceGhost min/km");
                   }
                 });
                 Navigator.pop(context);
@@ -535,7 +540,7 @@ class _GPSRunScreenState extends State<GPSRunScreen> {
 
           // Compare with ghost at each point
           if (_selectedGhostData != null) {
-            //print('Comparing with ghost...');
+            ////print('Comparing with ghost...');
             _compareWithGhost(newPoint, _stopwatch.elapsed.inSeconds);
           }
           _checkPaceAndUpdateDisplay();
