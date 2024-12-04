@@ -16,6 +16,8 @@ import 'package:http/http.dart' as http;
 import '../shared/UserSession.dart';
 import '../../sensors/IMUReader.dart';
 import '../../utils/KalmanFilter.dart';
+import 'dart:io';
+import 'package:path_provider/path_provider.dart';
 
 class GPSRunScreen extends StatefulWidget {
   @override
@@ -57,6 +59,9 @@ class _GPSRunScreenState extends State<GPSRunScreen> {
 
   LatLng? _previousLocation; // Define _previousLocation
   int? _previousTimestamp; // Define _previousTimestamp
+
+  // Add these variables to your _GPSRunScreenState class
+  List<String> _logEntries = [];
 
   // Buffers for IMU data
   Map<int, List<double>> _mobileIMUBuffer = {};
@@ -104,6 +109,27 @@ class _GPSRunScreenState extends State<GPSRunScreen> {
       }
     });
 
+  }
+
+  // Function to log data
+  void _logData(double pace, double velocity, double distance) {
+    int timestamp = DateTime.now().millisecondsSinceEpoch;
+    String logEntry = 'Timestamp: $timestamp, Pace: ${pace.toStringAsFixed(3)} min/km, Velocity: ${velocity.toStringAsFixed(3)} m/s, Distance: ${distance.toStringAsFixed(2)} m';
+    _logEntries.add(logEntry);
+    print(logEntry); // Optional: Print log entry to console
+  }
+
+// Function to save log to a file
+  Future<void> _saveLogToFile() async {
+    final directory = await getApplicationDocumentsDirectory();
+    final file = File('${directory.path}/run_log.txt');
+    await file.writeAsString(_logEntries.join('\n'));
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('Log saved to ${file.path}'),
+        backgroundColor: Colors.green,
+      ),
+    );
   }
 
   void _combineIMUData(int timestamp) {
@@ -248,6 +274,9 @@ class _GPSRunScreenState extends State<GPSRunScreen> {
               print('Speed: ${speed} min/km');
 
               _currentVelocity.value = speed;
+
+              // Log the data
+              _logData(pace, speed, _totalDistance);
             }
           }
         },
@@ -584,6 +613,9 @@ class _GPSRunScreenState extends State<GPSRunScreen> {
       );
       resetRecordingState();
     });
+
+    // Save the log file
+    _saveLogToFile();
   }
 
   Future<void> _waitForRunStartedMessage() async {
