@@ -21,30 +21,51 @@ class IMUReader {
   Stream<Map<String, dynamic>> get magnetometerStream => _magnetometerController.stream;
   final Duration _sensorInterval = SensorInterval.normalInterval; // Default interval
 
+  StreamSubscription<AccelerometerEvent>? _accelerometerSubscription;
+  StreamSubscription<UserAccelerometerEvent>? _userAccelerometerSubscription;
+  StreamSubscription<GyroscopeEvent>? _gyroscopeSubscription;
+  StreamSubscription<MagnetometerEvent>? _magnetometerSubscription;
 
-  void _initialize() {
-    print('Sensor interval: $_sensorInterval');
-    userAccelerometerEventStream().listen((UserAccelerometerEvent event) {
+
+    /*userAccelerometerEventStream().listen((UserAccelerometerEvent event) {
+      final int timestamp = DateTime.now().microsecondsSinceEpoch;
+      _accelerometerController.add({'timestamp': timestamp, 'data': [event.x, event.y, event.z]});
+    });*/
+    void _initialize() {
+      print('Sensor interval: $_sensorInterval');
+      /*
+      _accelerometerSubscription = accelerometerEventStream().listen((AccelerometerEvent event) {
+        final int timestamp = DateTime.now().microsecondsSinceEpoch;
+        if (!_accelerometerController.isClosed) {
+          _accelerometerController.add({'timestamp': timestamp, 'data': [event.x, event.y, event.z]});
+        }
+      });
+      */
+      _userAccelerometerSubscription = userAccelerometerEventStream().listen((UserAccelerometerEvent event) {
       final int timestamp = DateTime.now().microsecondsSinceEpoch;
       _accelerometerController.add({'timestamp': timestamp, 'data': [event.x, event.y, event.z]});
     });
-    /*
-    accelerometerEventStream().listen((AccelerometerEvent event) {
-      final int timestamp = DateTime.now().microsecondsSinceEpoch;
-      _accelerometerController.add({'timestamp': timestamp, 'data': [event.x, event.y, event.z]});
-    });
-    */
-    gyroscopeEventStream().listen((GyroscopeEvent event) {
-      final int timestamp = DateTime.now().microsecondsSinceEpoch;
-      _gyroscopeController.add({'timestamp': timestamp, 'data': (event.x, event.y, event.z)});
-    });
-    magnetometerEventStream().listen((MagnetometerEvent event) {
-      final int timestamp = DateTime.now().microsecondsSinceEpoch;
-      _magnetometerController.add({'timestamp': timestamp, 'data': (event.x, event.y, event.z)});
-    });
-  }
+
+      _gyroscopeSubscription = gyroscopeEventStream().listen((GyroscopeEvent event) {
+        final int timestamp = DateTime.now().microsecondsSinceEpoch;
+        if (!_gyroscopeController.isClosed) {
+          _gyroscopeController.add({'timestamp': timestamp, 'data': [event.x, event.y, event.z]});
+        }
+      });
+
+      _magnetometerSubscription = magnetometerEventStream().listen((MagnetometerEvent event) {
+        final int timestamp = DateTime.now().microsecondsSinceEpoch;
+        if (!_magnetometerController.isClosed) {
+          _magnetometerController.add({'timestamp': timestamp, 'data': [event.x, event.y, event.z]});
+        }
+      });
+    }
 
   void dispose() {
+    _accelerometerSubscription?.cancel();
+    _userAccelerometerSubscription?.cancel();
+    _gyroscopeSubscription?.cancel();
+    _magnetometerSubscription?.cancel();
     _accelerometerController.close();
     _gyroscopeController.close();
     _magnetometerController.close();

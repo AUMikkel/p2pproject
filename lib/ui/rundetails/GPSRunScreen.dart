@@ -17,6 +17,8 @@ import '../shared/UserSession.dart';
 import 'package:flutter_tts/flutter_tts.dart';
 import '../../sensors/IMUReader.dart';
 import '../../utils/KalmanFilter.dart';
+import 'dart:io';
+import 'package:path_provider/path_provider.dart';
 
 class GPSRunScreen extends StatefulWidget {
   @override
@@ -69,6 +71,9 @@ class _GPSRunScreenState extends State<GPSRunScreen> {
   LatLng? _previousLocation; // Define _previousLocation
   int? _previousTimestamp; // Define _previousTimestamp
 
+  // Add these variables to your _GPSRunScreenState class
+  List<String> _logEntries = [];
+
   // Buffers for IMU data
   Map<int, List<double>> _mobileIMUBuffer = {};
   Map<int, List<double>> _bleIMUBuffer = {};
@@ -115,6 +120,27 @@ class _GPSRunScreenState extends State<GPSRunScreen> {
       }
     });
 
+  }
+
+  // Function to log data
+  void _logData(double pace, double velocity, double distance) {
+    int timestamp = DateTime.now().millisecondsSinceEpoch;
+    String logEntry = 'Timestamp: $timestamp, Pace: ${pace.toStringAsFixed(3)} min/km, Velocity: ${velocity.toStringAsFixed(3)} m/s, Distance: ${distance.toStringAsFixed(2)} m';
+    _logEntries.add(logEntry);
+    print(logEntry); // Optional: Print log entry to console
+  }
+
+// Function to save log to a file
+  Future<void> _saveLogToFile() async {
+    final directory = await getExternalStorageDirectory();
+    final file = File('${directory!.path}/run_log.txt');
+    await file.writeAsString(_logEntries.join('\n'));
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('Log saved to ${file.path}'),
+        backgroundColor: Colors.green,
+      ),
+    );
   }
 
   void _combineIMUData(int timestamp) {
@@ -246,9 +272,11 @@ class _GPSRunScreenState extends State<GPSRunScreen> {
               _previousLocation = newLocation;
               _previousTimestamp = currentTimestamp;
 
-              double speed = sqrt(_kalmanFilter.state[2] * _kalmanFilter.state[2] + _kalmanFilter.state[3] * _kalmanFilter.state[3]);
-              double pace = (speed > 0.0) ? (1000 / speed) / 60 : 0;
+              //double speed = sqrt(_kalmanFilter.state[2] * _kalmanFilter.state[2] + _kalmanFilter.state[3] * _kalmanFilter.state[3]);
+              //double pace = (speed > 0.0) ? (1000 / speed) / 60 : 0;
 
+              double speed = sqrt(vx*vx + vy*vy);
+              double pace = (speed > 0.0) ? (1000 / speed) / 60 : 0;
               if (pace.isFinite && pace > 0) {
                 _currentPace.value = pace;
               } else {
@@ -258,6 +286,10 @@ class _GPSRunScreenState extends State<GPSRunScreen> {
               print('Speed: ${speed} min/km');
 
               _currentVelocity.value = speed;
+
+              // Log the data'
+              print('Pace: $pace min/km, Speed: $speed m/s, Distance: $_totalDistance m');
+              _logData(pace, speed, _totalDistance);
             }
           }
         },
@@ -567,7 +599,11 @@ class _GPSRunScreenState extends State<GPSRunScreen> {
                 TextStyle(color: Colors.white),)));
       }
       resetRecordingState();
-    }
+    });
+
+    // Save the log file
+    _saveLogToFile();
+  }
 
 Future<void> _waitForRunStartedMessage() async {
   Completer<void> completer = Completer<void>();
@@ -803,6 +839,11 @@ Future<void> _waitForRunStartedMessage() async {
               ),
               child: Text(_buttonText),
             ),
+          ),
+          const SizedBox(height: 8), // Add some spacing between the buttons
+          ElevatedButton(
+            onPressed: _saveLogToFile,
+            child: Text('Save Log File'),
           ),
         ],
       ),
