@@ -45,7 +45,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Future<void> _loadUserData() async {
     final userData = await UserSession().getUserData();
-    print('Loaded user data: $userData'); // Debug log
+    //print('Loaded user data: $userData'); // Debug log
 
     setState(() {
       name = userData['username']; // Ensure this matches your saved key
@@ -55,7 +55,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
     // Check for null values
     if (name == null || email == null || profileImageUrl == null) {
-      print('Error: One or more user data fields are null!');
+      //print('Error: One or more user data fields are null!');
     }
   }
 

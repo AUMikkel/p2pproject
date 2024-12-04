@@ -31,21 +31,21 @@ class _StatsScreenState extends State<StatsScreen> {
           });
         } else {
           setState(() {
-            print('Failed to load recent runs: ${jsonData['error']}');
+            //print('Failed to load recent runs: ${jsonData['error']}');
             hasError = true;
             isLoading = false;
           });
         }
       } else {
         setState(() {
-          print('Failed to load recent runs: ${response.statusCode}');
+          //print('Failed to load recent runs: ${response.statusCode}');
           hasError = true;
           isLoading = false;
         });
       }
     } catch (e) {
       setState(() {
-        print('Failed to load recent runs: $e');
+        //print('Failed to load recent runs: $e');
         hasError = true;
         isLoading = false;
       });

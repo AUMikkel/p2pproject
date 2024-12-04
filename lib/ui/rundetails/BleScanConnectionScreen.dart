@@ -154,7 +154,7 @@ class _BleScanConnectionScreenState extends State<BleScanConnectionScreen> {
         if (snapshot.hasData) {
           _receivedMessages.add(snapshot.data!);
           _receivedMessagesLast = snapshot.data!;
-          print('Received message: $_receivedMessagesLast');
+          //print('Received message: $_receivedMessagesLast');
         }
         return Column(
           children: _receivedMessages.map((message) => ListTile(

@@ -111,7 +111,7 @@ class _GPSRunScreenState extends State<GPSRunScreen> {
 
     _accelerometerSubscription = imuReader.accelerometerStream.listen((data) {
       if (_isRecording){
-        //print('IMU Data mobile: ${data['data']}');
+        ////print('IMU Data mobile: ${data['data']}');
         int timestamp = data['timestamp'];
         _mobileIMUBuffer[timestamp] = data['data'];
         _combineIMUData(timestamp);
@@ -120,7 +120,7 @@ class _GPSRunScreenState extends State<GPSRunScreen> {
 
     _bleIMUDataSubscription = BleNotificationService().imuDataStream.listen((data) {
       if (_isRecording) {
-        //print('IMU Data ble: ${data['data']}');
+        ////print('IMU Data ble: ${data['data']}');
         // Assuming that it has the right unit
         // Convert raw readings (in LSBs) to m/s2m/s2: Acceleration in m/s²=(Raw reading)×(Sensitivity Scale Factor)×9.8Acceleration in m/s²=(Raw reading)×(Sensitivity Scale Factor)×9.8.
         int timestamp = data['timestamp'];
@@ -136,7 +136,7 @@ class _GPSRunScreenState extends State<GPSRunScreen> {
     int timestamp = DateTime.now().millisecondsSinceEpoch;
     String logEntry = 'Timestamp: $timestamp, Pace: ${pace.toStringAsFixed(3)} min/km, Velocity: ${velocity.toStringAsFixed(3)} m/s, Distance: ${distance.toStringAsFixed(2)} m';
     _logEntries.add(logEntry);
-    print(logEntry); // Optional: Print log entry to console
+    //print(logEntry); // Optional: //print log entry to console
   }
 
 // Function to save log to a file
@@ -212,7 +212,7 @@ class _GPSRunScreenState extends State<GPSRunScreen> {
 
   void _handleIMUData(List<double> imuDataMobile, List<double> imuDataBle, int timestamp) {
     double deltaTime = _getDeltaTime(timestamp);
-    print('DeltaTime: $deltaTime s');
+    //print('DeltaTime: $deltaTime s');
     // Weighted averaging of IMU data
     double weightMobile = 1.0; // Adjust weights as needed
     double weightBle = 0.0;
@@ -231,7 +231,7 @@ class _GPSRunScreenState extends State<GPSRunScreen> {
       try {
         return double.parse(part);
       } catch (e) {
-        print('Error parsing double: $part');
+        //print('Error parsing double: $part');
         return 0.0; // Default value in case of error
       }
     }).toList();
@@ -305,13 +305,17 @@ class _GPSRunScreenState extends State<GPSRunScreen> {
                 _currentPace.value = 0.0;
               }
               print('Pace: ${pace} min/km');
-              print('Speed: ${speed} min/km');
+              //print('Speed: ${speed} min/km');
 
               _currentVelocity.value = speed;
 
               // Log the data'
-              print('Pace: $pace min/km, Speed: $speed m/s, Distance: $_totalDistance m');
+              //print('Pace: $pace min/km, Speed: $speed m/s, Distance: $_totalDistance m');
               _logData(pace, speed, _totalDistance);
+
+              // Send pace to BLE device
+              //print('Sending pace to BLE device...');
+              BleNotificationService().sendPaceToBleDevice(_currentPace.value, _paceThreshold);
             }
           }
         },
@@ -423,7 +427,7 @@ class _GPSRunScreenState extends State<GPSRunScreen> {
                   double ghostDistanceInKm = route['total_distance'] / 1000.0; // Convert meters to kilometers
                   if (ghostDistanceInKm > 0) {
                     _paceThreshold = ghostTimeInMinutes / ghostDistanceInKm;
-                    print("Pace threshold set to $_paceThreshold min/km");
+                    //print("Pace threshold set to $_paceThreshold min/km");
                   }
                 });
                 Navigator.pop(context);
@@ -456,7 +460,7 @@ class _GPSRunScreenState extends State<GPSRunScreen> {
         setState(() {
           _ghostProgressMessage = 'Run completed! All checkpoints passed.';
           _isRunCompleted = true; // Mark the run as completed
-          //print('Run completed! All checkpoints passed.');
+          ////print('Run completed! All checkpoints passed.');
         });
       }
       return;
@@ -474,16 +478,16 @@ class _GPSRunScreenState extends State<GPSRunScreen> {
 
       setState(() {
         if (timeDifference > 0) {
-          //print('You are behind by $timeDifference seconds.');
+          ////print('You are behind by $timeDifference seconds.');
           _ghostProgressMessage = 'You are behind by $timeDifference seconds.';
           final message = 'You are behind by $timeDifference seconds.';
-          print(message);
+          //print(message);
           _ghostProgressMessage = message;
           _speak(message);
         } else {
-          print('You are ahead by ${timeDifference.abs()} seconds.');
+          //print('You are ahead by ${timeDifference.abs()} seconds.');
           final message = 'You are ahead by ${timeDifference.abs()} seconds.';
-          print(message);
+          //print(message);
           _ghostProgressMessage = message;
           _speak(message);
         }
@@ -550,7 +554,7 @@ class _GPSRunScreenState extends State<GPSRunScreen> {
 
           // Compare with ghost at each point
           if (_selectedGhostData != null) {
-            //print('Comparing with ghost...');
+            ////print('Comparing with ghost...');
             _compareWithGhost(newPoint, _stopwatch.elapsed.inSeconds);
           }
           _checkPaceAndUpdateDisplay();
@@ -771,7 +775,7 @@ Future<void> _waitForRunStartedMessage() async {
                               valueListenable: _currentPace,
                               builder: (context, pace, _) {
                                 return Text(
-                                  'Current Pace: ${pace.toStringAsFixed(3)} min/km',
+                                  'Current Pace: ${pace.toStringAsFixed(2)} min/km',
                                   style: TextStyle(
                                     fontSize: 16,
                                     fontWeight: FontWeight.bold,
@@ -784,7 +788,7 @@ Future<void> _waitForRunStartedMessage() async {
                               valueListenable: _currentVelocity,
                               builder: (context, velocity, _) {
                                 return Text(
-                                  'Current Velocity: ${velocity.toStringAsFixed(3)} m/s',
+                                  'Current Velocity: ${velocity.toStringAsFixed(2)} m/s',
                                   style: TextStyle(
                                     fontSize: 16,
                                     fontWeight: FontWeight.bold,
@@ -832,10 +836,8 @@ Future<void> _waitForRunStartedMessage() async {
                                 color: Colors.red,
                               ),
                             ),
-                          const SizedBox(height: 8),
-                          Text(
-                            'Ghost Pace: ${_paceThreshold.toStringAsFixed(2)} min/km\n' +
-                                'Current Pace: ${_currentPace.value}',
+                          const SizedBox(height: 1),
+                          Text('Ghost Pace: ${_paceThreshold.toStringAsFixed(2)} min/km\n',
                             style: TextStyle(
                               fontSize: 14,
                               fontWeight: FontWeight.w500,
