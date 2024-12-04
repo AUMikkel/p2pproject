@@ -462,15 +462,13 @@ class _GPSRunScreenState extends State<GPSRunScreen> {
       setState(() {
         if (timeDifference > 0) {
           //print('You are behind by $timeDifference seconds.');
-          _ghostProgressMessage = 'You are behind by $timeDifference seconds.';
-          final message = 'You are behind by $timeDifference seconds.';
-          print(message);
+          _ghostProgressMessage = 'You are behind by ${timeDifference.abs()}. seconds.';
+          final message = 'You are behind by ${timeDifference.abs()} seconds.';
           _ghostProgressMessage = message;
           _speak(message);
         } else {
           print('You are ahead by ${timeDifference.abs()} seconds.');
           final message = 'You are ahead by ${timeDifference.abs()} seconds.';
-          print(message);
           _ghostProgressMessage = message;
           _speak(message);
         }
