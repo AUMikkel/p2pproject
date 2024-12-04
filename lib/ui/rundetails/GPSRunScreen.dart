@@ -97,14 +97,13 @@ class _GPSRunScreenState extends State<GPSRunScreen> {
   void initState() {
     super.initState();
     _activityService = ActivityRecognitionService();
-    _initializeTts();
     // Listen to shared activity updates
     _activitySubscription = _activityService.activityStream.listen((activity) {
       if (!_isDisposed) {
         _currentActivity.value = activity.type.toString().split('.').last;
       }
     });
-
+    _initializeTts();
     _checkBleConnection();
     _startContinuousLocationUpdates();
     _getInitialLocation();
@@ -147,6 +146,7 @@ class _GPSRunScreenState extends State<GPSRunScreen> {
       if (directory == null) {
         throw Exception("Unable to determine directory");
       }
+      //add a timestamp to the file name
       final file = File('${directory.path}/run_log.txt');
       await file.writeAsString(_logEntries.join('\n'));
       ScaffoldMessenger.of(context).showSnackBar(
