@@ -49,7 +49,7 @@ class _GPSRunScreenState extends State<GPSRunScreen> {
   FlutterTts _flutterTts = FlutterTts();
   Stopwatch _stopwatch = Stopwatch(); // Track elapsed time
   double _totalDistance = 0.0; // Track total distance in kilometers
-  double _paceThreshold = 7.0; // Threshold pace in minutes per kilometer
+  double _paceGhost = 7.0; // Threshold pace in minutes per kilometer
 
   bool _isDisposed = false;
   bool _isBleConnected = false;
@@ -279,9 +279,6 @@ class _GPSRunScreenState extends State<GPSRunScreen> {
 
               if (_previousLocation != null && _previousTimestamp != null) {
                 double deltaTime = (currentTimestamp - _previousTimestamp!) / 1000.0;
-                if (deltaTime <= 0.1 || deltaTime > 10.0) {
-                  return;
-                }
                 double distance = const Distance().as(LengthUnit.Meter, _previousLocation!, newLocation);
                 double bearing = const Distance().bearing(_previousLocation!, newLocation);
 
@@ -290,13 +287,8 @@ class _GPSRunScreenState extends State<GPSRunScreen> {
               }
 
               _kalmanFilter.updateWithGPS(newLocation, vx, vy);
-
               _previousLocation = newLocation;
               _previousTimestamp = currentTimestamp;
-
-              //double speed = sqrt(_kalmanFilter.state[2] * _kalmanFilter.state[2] + _kalmanFilter.state[3] * _kalmanFilter.state[3]);
-              //double pace = (speed > 0.0) ? (1000 / speed) / 60 : 0;
-
               double speed = sqrt(vx*vx + vy*vy);
               double pace = (speed > 0.0) ? (1000 / speed) / 60 : 0;
               if (pace.isFinite && pace > 0) {
@@ -304,13 +296,9 @@ class _GPSRunScreenState extends State<GPSRunScreen> {
               } else {
                 _currentPace.value = 0.0;
               }
-              print('Pace: ${pace} min/km');
-              print('Speed: ${speed} min/km');
-
               _currentVelocity.value = speed;
 
-              // Log the data'
-              print('Pace: $pace min/km, Speed: $speed m/s, Distance: $_totalDistance m');
+              // Log the data's pace, speed, and distance
               _logData(pace, speed, _totalDistance);
             }
           }
@@ -422,8 +410,7 @@ class _GPSRunScreenState extends State<GPSRunScreen> {
                   double ghostTimeInMinutes = route['total_time'] / 60.0; // Convert seconds to minutes
                   double ghostDistanceInKm = route['total_distance'] / 1000.0; // Convert meters to kilometers
                   if (ghostDistanceInKm > 0) {
-                    _paceThreshold = ghostTimeInMinutes / ghostDistanceInKm;
-                    print("Pace threshold set to $_paceThreshold min/km");
+                    _paceGhost = ghostTimeInMinutes / ghostDistanceInKm;
                   }
                 });
                 Navigator.pop(context);
@@ -834,7 +821,7 @@ Future<void> _waitForRunStartedMessage() async {
                             ),
                           const SizedBox(height: 8),
                           Text(
-                            'Ghost Pace: ${_paceThreshold.toStringAsFixed(2)} min/km\n' +
+                            'Ghost Pace: ${_paceGhost.toStringAsFixed(2)} min/km\n' +
                                 'Current Pace: ${_currentPace.value}',
                             style: TextStyle(
                               fontSize: 14,
