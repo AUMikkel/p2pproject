@@ -60,7 +60,7 @@ class _GPSRunScreenState extends State<GPSRunScreen> {
   void _initializeTts() async {
     await _flutterTts.setLanguage("en-US");
     await _flutterTts.setPitch(1.0); // Normal pitch
-    await _flutterTts.setSpeechRate(1.0); // Slower speech rate
+    await _flutterTts.setSpeechRate(0.50); // Slower speech rate
   }
   Future<void> _speak(String message) async {
     await _flutterTts.stop(); // Stop any ongoing speech before starting new
@@ -458,14 +458,14 @@ class _GPSRunScreenState extends State<GPSRunScreen> {
     final distanceToCheckpoint =
     const Distance().as(LengthUnit.Meter, userLocation, checkpointLatLng);
 
-    if (distanceToCheckpoint < 5) {
+    if (distanceToCheckpoint < 10) {
       final timeDifference = userElapsedTime - ghostTime;
 
       setState(() {
         if (timeDifference > 0) {
           //print('You are behind by $timeDifference seconds.');
-          _ghostProgressMessage = 'You are behind by ${timeDifference.abs()}. seconds.';
-          final message = 'You are behind by ${timeDifference.abs()} seconds.';
+          _ghostProgressMessage = 'You are behind by ${timeDifference}. seconds.';
+          final message = 'You are behind by ${timeDifference} seconds.';
           _ghostProgressMessage = message;
           _speak(message);
         } else {
@@ -533,8 +533,6 @@ class _GPSRunScreenState extends State<GPSRunScreen> {
               'time': _stopwatch.elapsed.inSeconds,
             });
           }
-          _totalDistance += _calculateDistance(_route.value.last, newPoint);
-
           // Compare with ghost at each point
           if (_selectedGhostData != null) {
             ////print('Comparing with ghost...');
@@ -848,11 +846,11 @@ Future<void> _waitForRunStartedMessage() async {
               child: Text(_buttonText),
             ),
           ),
-          const SizedBox(height: 8), // Add some spacing between the buttons
-          ElevatedButton(
-            onPressed: _saveLogToFile,
-            child: Text('Save Log File'),
-          ),
+         // const SizedBox(height: 8), // Add some spacing between the buttons
+          //ElevatedButton(
+          //  onPressed: _saveLogToFile,
+          //  child: Text('Save Log File'),
+         // ),
         ],
       ),
     );
