@@ -3,9 +3,6 @@ import 'dart:io';
 import 'package:path_provider/path_provider.dart';
 import 'package:flutter_blue_plus/flutter_blue_plus.dart';
 import 'package:p2prunningapp/utils/bleUtils.dart';
-import 'package:p2prunningapp/services/bleScan.dart';
-import 'package:p2prunningapp/services/bleDevice.dart';
-import 'package:p2prunningapp/services/bleService.dart';
 import 'package:permission_handler/permission_handler.dart';
 
 enum SyncState { WaitingForT1, WaitingForT4 }
@@ -42,6 +39,7 @@ class BleNotificationService {
     _connectedDevice = device;
     startListeningToNotifications(device);
   }
+  
   Future<void> startListeningToNotifications(BluetoothDevice device) async {
     final List<BluetoothService> services = await device.discoverServices();
     for (BluetoothService service in services) {
