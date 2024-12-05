@@ -134,7 +134,7 @@ class _GPSRunScreenState extends State<GPSRunScreen> {
   // Function to log data
   void _logData(double pace, double velocity, double distance) {
     int timestamp = DateTime.now().millisecondsSinceEpoch;
-    String logEntry = 'Timestamp: $timestamp, Pace: ${pace.toStringAsFixed(3)} min/km, Velocity: ${velocity.toStringAsFixed(3)} m/s, Distance: ${distance.toStringAsFixed(2)} m';
+    String logEntry = 'Timestamp: $timestamp, Pace: ${pace} min/km, Velocity: ${velocity} m/s, Distance: ${distance} m';
     _logEntries.add(logEntry);
     print(logEntry); // Optional: Print log entry to console
   }
