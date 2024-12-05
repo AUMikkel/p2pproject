@@ -312,13 +312,10 @@ class _GPSRunScreenState extends State<GPSRunScreen> {
   }
 
   Future<void> _checkBleConnection() async {
-    // Implement your logic to check if the BLE device is connected
-    // For example, you can use a service or a method that returns the connection status
     bool isConnected = await checkBleConnectionStatus();
     setState(() {
       _isBleConnected = isConnected;
     });
-
     if (!_isBleConnected) {
       _showBleConnectionPrompt();
     }
