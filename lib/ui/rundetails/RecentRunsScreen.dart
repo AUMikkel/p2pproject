@@ -13,11 +13,18 @@ class _RecentRunsScreenState extends State<RecentRunsScreen> {
   List<Map<String, dynamic>> recentRuns = [];
   bool isLoading = true;
   bool hasError = false;
-
+  final Map<int, MapController> mapControllers = {}; // Unique MapControllers
   @override
   void initState() {
     super.initState();
-    _fetchRecentRuns();
+    _fetchRecentRuns(); // Fetch the runs when the widget initializes
+  }
+  @override
+  void dispose() {
+    for (var controller in mapControllers.values) {
+      controller.dispose();
+    }
+    super.dispose();
   }
 
   Future<void> _fetchRecentRuns() async {
@@ -27,8 +34,10 @@ class _RecentRunsScreenState extends State<RecentRunsScreen> {
       if (response.statusCode == 200) {
         final jsonData = json.decode(response.body);
         if (jsonData['success']) {
+          final allRuns = jsonData['routes'] as List<dynamic>;
           setState(() {
-            recentRuns = _processRuns(jsonData['routes']);
+            // Process only the last 10 runs
+            recentRuns = _processRuns(allRuns);
             isLoading = false;
           });
         } else {
@@ -57,7 +66,10 @@ class _RecentRunsScreenState extends State<RecentRunsScreen> {
   }
 
   List<Map<String, dynamic>> _processRuns(List<dynamic> runs) {
-    return runs.map((run) {
+    // Take the last 10 runs (assuming the list is already sorted)
+    final last10Runs = runs.reversed.toList();
+
+    return last10Runs.map((run) {
       final totalTimeInSeconds = run['total_time'] is int
           ? run['total_time']
           : int.tryParse(run['total_time'].toString()) ?? 0;
@@ -74,16 +86,11 @@ class _RecentRunsScreenState extends State<RecentRunsScreen> {
         pace = '$paceMinutes:$paceSeconds';
       }
 
-      // Safely parse the route data
       final route = run['route'] is List
           ? (run['route'] as List<dynamic>)
           .map((point) => LatLng(point['lat'], point['lng']))
           .toList()
           : <LatLng>[];
-
-      if (route.isEmpty) {
-        print('Invalid or missing route data for run ID: ${run['id']}');
-      }
 
       return {
         'date': run['date'], // Replace with a formatted date if available
@@ -123,7 +130,7 @@ class _RecentRunsScreenState extends State<RecentRunsScreen> {
       itemBuilder: (context, index) {
         final run = recentRuns[index];
         final route = run['route'] as List<LatLng>;
-        final MapController controller = MapController();
+        final mapController = mapControllers.putIfAbsent(index, () => MapController());
 
         return Card(
           shape: RoundedRectangleBorder(
@@ -161,7 +168,7 @@ class _RecentRunsScreenState extends State<RecentRunsScreen> {
                     child: SizedBox(
                       height: 400, // Adjusted height for map visibility
                       child: FlutterMap(
-                        mapController: controller,
+                        mapController: mapController,
                         options: MapOptions(
                           initialCameraFit: CameraFit.coordinates(
                             coordinates: route,
