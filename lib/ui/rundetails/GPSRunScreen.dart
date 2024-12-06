@@ -730,7 +730,7 @@ Future<void> _waitForRunStartedMessage() async {
               },
             ),
           Positioned(
-            top: 16,
+            top: 4,
             left: 16,
             right: 16,
             child: Column(
@@ -749,7 +749,7 @@ Future<void> _waitForRunStartedMessage() async {
                               style: TextStyle(
                                 fontSize: 16,
                                 fontWeight: FontWeight.bold,
-                                color: Colors.red,
+                                color: Colors.blue,
                               ),
                             ),
                             ValueListenableBuilder<double>(
@@ -760,20 +760,7 @@ Future<void> _waitForRunStartedMessage() async {
                                   style: TextStyle(
                                     fontSize: 16,
                                     fontWeight: FontWeight.bold,
-                                    color: Colors.red,
-                                  ),
-                                );
-                              },
-                            ),
-                            ValueListenableBuilder<double>(
-                              valueListenable: _currentVelocity,
-                              builder: (context, velocity, _) {
-                                return Text(
-                                  'Current Velocity: ${velocity.toStringAsFixed(3)} m/s',
-                                  style: TextStyle(
-                                    fontSize: 16,
-                                    fontWeight: FontWeight.bold,
-                                    color: Colors.red,
+                                    color: Colors.blue,
                                   ),
                                 );
                               },
@@ -783,7 +770,7 @@ Future<void> _waitForRunStartedMessage() async {
                               style: TextStyle(
                                 fontSize: 16,
                                 fontWeight: FontWeight.bold,
-                                color: Colors.red,
+                                color: Colors.blue,
                               ),
                             ),
                           ],
@@ -792,7 +779,7 @@ Future<void> _waitForRunStartedMessage() async {
                     );
                   },
                 ),
-                const SizedBox(height: 8),
+                const SizedBox(height: 0),
                 ElevatedButton(
                   onPressed: _selectGhostRoute,
                   child: Text(
@@ -817,10 +804,9 @@ Future<void> _waitForRunStartedMessage() async {
                                 color: Colors.red,
                               ),
                             ),
-                          const SizedBox(height: 8),
+                          const SizedBox(height: 0),
                           Text(
-                            'Ghost Pace: ${_paceGhost.toStringAsFixed(2)} min/km\n' +
-                                'Current Pace: ${_currentPace.value}',
+                            'Ghost Pace: ${_paceGhost.toStringAsFixed(2)} min/km',
                             style: TextStyle(
                               fontSize: 14,
                               fontWeight: FontWeight.w500,
@@ -835,7 +821,7 @@ Future<void> _waitForRunStartedMessage() async {
             ),
           ),
           Positioned(
-            bottom: 16,
+            bottom: 4,
             left: 16,
             right: 16,
             child: ElevatedButton(
