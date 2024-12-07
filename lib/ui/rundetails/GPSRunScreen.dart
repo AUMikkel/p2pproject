@@ -566,6 +566,7 @@ class _GPSRunScreenState extends State<GPSRunScreen> {
   Future<void> _stopRecording() async {
     _locationSubscription?.cancel();
     _stopwatch.stop();
+    _stopwatch.reset();
     setState(() {
       _isRecording = false;
       _buttonText = 'Start Run';
@@ -609,6 +610,16 @@ class _GPSRunScreenState extends State<GPSRunScreen> {
 
     // Save the log file
     _saveLogToFile();
+    _locationSubscription?.cancel();
+    _stopwatch.stop();
+    _stopwatch.reset();
+    setState(() {
+      _isRecording = false;
+      _buttonText = 'Start Run';
+    });
+
+    // Stop listening to IMU data
+    BleNotificationService().stopListeningToIMUData();
   }
 
 Future<void> _waitForRunStartedMessage() async {
@@ -779,7 +790,7 @@ Future<void> _waitForRunStartedMessage() async {
                               },
                             ),
                             Text(
-                              'Total Distance: ${_totalDistance.toStringAsFixed(2)} m',
+                              'Total Distance: ${_totalDistance.toStringAsFixed(2)} m ' 'Time: ${_stopwatch.elapsed.inSeconds} secs',
                               style: TextStyle(
                                 fontSize: 16,
                                 fontWeight: FontWeight.bold,

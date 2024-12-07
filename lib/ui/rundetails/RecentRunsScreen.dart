@@ -35,6 +35,7 @@ class _RecentRunsScreenState extends State<RecentRunsScreen> {
         final jsonData = json.decode(response.body);
         if (jsonData['success']) {
           final allRuns = jsonData['routes'] as List<dynamic>;
+
           setState(() {
             // Process only the last 10 runs
             recentRuns = _processRuns(allRuns);
@@ -67,21 +68,25 @@ class _RecentRunsScreenState extends State<RecentRunsScreen> {
 
   List<Map<String, dynamic>> _processRuns(List<dynamic> runs) {
     // Take the last 10 runs (assuming the list is already sorted)
-    final last10Runs = runs.reversed.toList();
+    final last10Runs = runs.reversed.take(4).toList();
 
     return last10Runs.map((run) {
       final totalTimeInSeconds = run['total_time'] is int
           ? run['total_time']
           : int.tryParse(run['total_time'].toString()) ?? 0;
-
+      print(run['total_time']);
+      print(totalTimeInSeconds);
       final totalDistanceInKm = run['total_distance'] is num
           ? run['total_distance'] / 1000
           : double.tryParse(run['total_distance'].toString()) ?? 0.0;
 
       String pace = "N/A";
       if (totalDistanceInKm > 0) {
+
         final paceInSecondsPerKm = totalTimeInSeconds / totalDistanceInKm;
+
         final paceMinutes = (paceInSecondsPerKm ~/ 60).toString();
+
         final paceSeconds = (paceInSecondsPerKm % 60).toStringAsFixed(0).padLeft(2, '0');
         pace = '$paceMinutes:$paceSeconds';
       }
@@ -91,7 +96,7 @@ class _RecentRunsScreenState extends State<RecentRunsScreen> {
           .map((point) => LatLng(point['lat'], point['lng']))
           .toList()
           : <LatLng>[];
-
+      print('Raw total_time: ${run['total_time']}');
       return {
         'date': run['date'], // Replace with a formatted date if available
         'distance': '${totalDistanceInKm.toStringAsFixed(2)} km',
