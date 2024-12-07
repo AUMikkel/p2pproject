@@ -74,6 +74,11 @@ dev_dependencies:
 # For information on the generic Dart part of this file, see the
 # following page: https://dart.dev/tools/pub/pubspec
 
+flutter_icons:
+  android: true
+  ios: true
+  image_path: "lib/assets/p2plogo.jpg"
+
 # The following section is specific to Flutter packages.
 flutter:
 

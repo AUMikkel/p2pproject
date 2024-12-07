@@ -1,0 +1,176 @@
+import os, sys, io
+import M5
+from M5 import *
+from m5ble import *
+from hardware import *
+import time
+
+
+
+start1 = None
+start2 = None
+connection_status = None
+seconds_label = None
+minutes_label = None
+hours_label = None
+hm = None
+ms = None
+pace = None
+ghost_pace = None
+pace_num = None
+ghost_pace_num = None
+border = None
+ble = None
+timer0 = None
+timer1 = None
+i2c0 = None
+
+
+server = None
+client_handle = None
+pace_var = None
+char2_uuid = None
+minutes = None
+seconds = None
+char_uuid = None
+service_uuid = None
+hours = None
+
+
+def ble_server_on_receive_event(args):
+  _server, _connected_client_handle = args
+  global start1, start2, connection_status, seconds_label, minutes_label, hours_label, hm, ms, pace, ghost_pace, pace_num, ghost_pace_num, border, ble, timer0, timer1, i2c0, server, client_handle, pace_var, char2_uuid, minutes, seconds, char_uuid, service_uuid, hours
+  server = _server
+  client_handle = _connected_client_handle
+  pace_var = str((client_handle.read(char_uuid, 0)))
+  pace.setText(str('Pace:'))
+  ghost_pace.setText(str('Ghost:'))
+  pace_num.setText(str((str((pace_var[2])) + str(((str((pace_var[3])) + str(((str((pace_var[4])) + str(((str((pace_var[5])) + str((pace_var[6]))))))))))))))
+  ghost_pace_num.setText(str((str((pace_var[7])) + str(((str((pace_var[8])) + str(((str((pace_var[9])) + str(((str((pace_var[10])) + str(((str((pace_var[11])) + str((pace_var[12])))))))))))))))))
+
+
+def timer0_cb(t):
+  global start1, start2, connection_status, seconds_label, minutes_label, hours_label, hm, ms, pace, ghost_pace, pace_num, ghost_pace_num, border, ble, timer0, timer1, i2c0, server, client_handle, pace_var, char2_uuid, minutes, seconds, char_uuid, service_uuid, hours
+  client_handle.write(str((Imu.getAccel())), char2_uuid)
+
+
+def timer1_cb(t):
+  global start1, start2, connection_status, seconds_label, minutes_label, hours_label, hm, ms, pace, ghost_pace, pace_num, ghost_pace_num, border, ble, timer0, timer1, i2c0, server, client_handle, pace_var, char2_uuid, minutes, seconds, char_uuid, service_uuid, hours
+  if seconds >= 59:
+    minutes = minutes + 1
+    seconds = -1
+    if minutes >= 59:
+      hours = hours + 1
+      minutes = 0
+  seconds = seconds + 1
+  seconds_label.setText(str(seconds))
+  minutes_label.setText(str(minutes))
+  hours_label.setText(str(hours))
+
+
+def ble_server_on_disconnected_event(args):
+  _server, _connected_client_handle = args
+  global start1, start2, connection_status, seconds_label, minutes_label, hours_label, hm, ms, pace, ghost_pace, pace_num, ghost_pace_num, border, ble, timer0, timer1, i2c0, server, client_handle, pace_var, char2_uuid, minutes, seconds, char_uuid, service_uuid, hours
+  server = _server
+  client_handle = _connected_client_handle
+  connection_status.setVisible(True)
+  connection_status.setColor(0xcc0000, 0x000000)
+  connection_status.setText(str('Disconnected'))
+
+
+def ble_server_on_connected_event(args):
+  _server, _connected_client_handle = args
+  global start1, start2, connection_status, seconds_label, minutes_label, hours_label, hm, ms, pace, ghost_pace, pace_num, ghost_pace_num, border, ble, timer0, timer1, i2c0, server, client_handle, pace_var, char2_uuid, minutes, seconds, char_uuid, service_uuid, hours
+  server = _server
+  client_handle = _connected_client_handle
+  connection_status.setColor(0x33cc00, 0x000000)
+  connection_status.setText(str('Connected'))
+  time.sleep(2)
+  start1.setText(str(' Press M5 '))
+  start2.setText(str('  to start  '))
+  connection_status.setVisible(False)
+
+
+def setup():
+  global start1, start2, connection_status, seconds_label, minutes_label, hours_label, hm, ms, pace, ghost_pace, pace_num, ghost_pace_num, border, ble, timer0, timer1, i2c0, server, client_handle, pace_var, char2_uuid, minutes, seconds, char_uuid, service_uuid, hours
+
+  M5.begin()
+  start1 = Widgets.Label(" ", 10, 30, 1.0, 0x007700, 0x000000, Widgets.FONTS.DejaVu40)
+  start2 = Widgets.Label(" ", 12, 70, 1.0, 0x007700, 0x000000, Widgets.FONTS.DejaVu40)
+  connection_status = Widgets.Label(" ", 8, 7, 1.0, 0xffffff, 0x000000, Widgets.FONTS.DejaVu24)
+  seconds_label = Widgets.Label(" ", 156, 30, 1.0, 0x007700, 0x000000, Widgets.FONTS.DejaVu40)
+  minutes_label = Widgets.Label(" ", 82, 30, 1.0, 0x007700, 0x000000, Widgets.FONTS.DejaVu40)
+  hours_label = Widgets.Label(" ", 32, 30, 1.0, 0x007700, 0x000000, Widgets.FONTS.DejaVu40)
+  hm = Widgets.Label(" ", 60, 17, 1.0, 0x003300, 0x000000, Widgets.FONTS.DejaVu56)
+  ms = Widgets.Label(" ", 134, 17, 1.0, 0x003300, 0x000000, Widgets.FONTS.DejaVu56)
+  pace = Widgets.Label(" ", 30, 76, 1.0, 0x0099cc, 0x000000, Widgets.FONTS.DejaVu24)
+  ghost_pace = Widgets.Label(" ", 124, 76, 1.0, 0xccaa00, 0x000000, Widgets.FONTS.DejaVu24)
+  pace_num = Widgets.Label(" ", 30, 102, 1.0, 0x0099cc, 0x000000, Widgets.FONTS.DejaVu24)
+  ghost_pace_num = Widgets.Label(" ", 123, 102, 1.0, 0xccaa00, 0x000000, Widgets.FONTS.DejaVu24)
+  border = Widgets.Rectangle(2, 2, 130, 235, 0x005000, 0x000000)
+
+  i2c0 = I2C(0, scl=Pin(33), sda=Pin(32), freq=100000)
+  ble = M5BLE.Device('M5UiFlow')
+  ble.server.on_receive(ble_server_on_receive_event)
+  ble.server.on_disconnected(ble_server_on_disconnected_event)
+  ble.server.on_connected(ble_server_on_connected_event)
+  service_uuid = '6F34165C-D685-94A2-CFC1-57C14F328B83'
+  char_uuid = 'AE4B02CC-DF79-6EF4-51D8-36EB0E0B0F13'
+  char2_uuid = 'AE4B02CC-DF79-6EF4-51D8-36EB0E0B0F14'
+  Widgets.setBrightness(150)
+  Widgets.setRotation(1)
+  ble.server.add_service(service_uuid, [ble.server.create_characteristic(char_uuid, True, True, True), ble.server.create_characteristic(char2_uuid, True, False, True)])
+  ble.server.start(500000)
+  connection_status.setColor(0xffffff, 0x000000)
+  connection_status.setText(str('Connecting...'))
+  timer0 = Timer(0)
+  timer1 = Timer(1)
+
+
+def loop():
+  global start1, start2, connection_status, seconds_label, minutes_label, hours_label, hm, ms, pace, ghost_pace, pace_num, ghost_pace_num, border, ble, timer0, timer1, i2c0, server, client_handle, pace_var, char2_uuid, minutes, seconds, char_uuid, service_uuid, hours
+  M5.update()
+  if BtnA.wasClicked():
+    start1.setVisible(False)
+    start2.setVisible(False)
+    hm.setText(str(':'))
+    ms.setText(str(':'))
+    seconds = -1
+    minutes = 0
+    hours = 0
+    seconds_label.setVisible(True)
+    minutes_label.setVisible(True)
+    hours_label.setVisible(True)
+    hm.setVisible(True)
+    ms.setVisible(True)
+    pace.setVisible(True)
+    ghost_pace.setVisible(True)
+    pace_num.setVisible(True)
+    ghost_pace_num.setVisible(True)
+    timer1.init(mode=Timer.PERIODIC, period=1000, callback=timer1_cb)
+    client_handle.write('Run started', char_uuid)
+    timer0.init(mode=Timer.PERIODIC, period=1000, callback=timer0_cb)
+  if BtnA.wasHold():
+    timer1.init(mode=Timer.ONE_SHOT, period=0, callback=timer1_cb)
+    seconds = seconds - 1
+    client_handle.write('Run finished', char_uuid)
+    timer0.init(mode=Timer.ONE_SHOT, period=0, callback=timer0_cb)
+  if BtnB.wasClicked():
+    start1.setVisible(True)
+    start2.setVisible(True)
+    pace_num.setVisible(False)
+    ghost_pace_num.setVisible(False)
+
+
+if __name__ == '__main__':
+  try:
+    setup()
+    while True:
+      loop()
+  except (Exception, KeyboardInterrupt) as e:
+    try:
+      ble.deinit()
+      from utility import print_error_msg
+      print_error_msg(e)
+    except ImportError:
+      print("please update to latest firmware")

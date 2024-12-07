@@ -95,7 +95,7 @@ class BleNotificationService {
           // Round paces to two decimal places
           final String ownPaceStr = own_pace.toStringAsFixed(2);
           final String ghostPaceStr = ghost_pace.toStringAsFixed(2);
-          final pace = '$ownPaceStr $ghostPaceStr';
+          final pace = '$ownPaceStr $ghostPaceStr  ';
           await characteristic.write(pace.codeUnits);
           ////print('Pace tuple sent to BLE device: ${(own_pace.toString() + ", " + ghost_pace.toString())}');
           ////print('Pace tuple sent to BLE device: ${(own_pace.toString() + ", " + ghost_pace.toString()).codeUnits}');
@@ -148,10 +148,10 @@ class BleNotificationService {
       //print('T1: $T1');
       //print('T2: $T2');
 
-      // Take T3 just before sending the value
-      final int T3 = DateTime.now().microsecondsSinceEpoch;
       try {
-        await characteristic.write(T3.toString().codeUnits);
+        await characteristic.write("T3".codeUnits);
+        // Take T3 just before sending the value
+        final int T3 = DateTime.now().microsecondsSinceEpoch;
         //print('T3: $T3');
         //print('Successfully sent T3 to BLE device');
 
