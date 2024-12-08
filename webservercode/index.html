@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Runs Map</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.3/dist/leaflet.css" />
+    <style>
+        #map {
+            height: 100vh; /* Fullscreen map */
+        }
+    </style>
+</head>
+<body>
+    <div id="map"></div>
+
+    <script src="https://unpkg.com/leaflet@1.9.3/dist/leaflet.js"></script>
+    <script>
+        // Initialize map
+        const map = L.map('map').setView([55.6761, 12.5683], 10); // Centered on Copenhagen
+
+        // Add OpenStreetMap tiles
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+        }).addTo(map);
+
+        // Fetch runs data from the PHP endpoint
+        fetch('fetch_runs.php')
+    .then(response => response.json())
+    .then(data => {
+        if (data.error) {
+            console.error(data.error);
+            return;
+        }
+
+        // Loop through each run and add to the map
+        data.forEach(run => {
+            // Check if the route has valid points
+            if (!run.route || run.route.length === 0) return;
+
+            // Parse route points
+            const latLngs = run.route.map(point => [point.lat, point.lng]);
+
+            // Add polyline for the route
+            const polyline = L.polyline(latLngs, { color: 'blue' }).addTo(map);
+
+            // Add marker for the start of the run
+            const startPoint = latLngs[0];
+
+            // Convert total_time to hours and minutes
+            const timeInMinutes = run.total_time / 60; // Time in minutes
+            const hours = Math.floor(timeInMinutes / 60);
+            const minutes = Math.floor(timeInMinutes % 60);
+            const timeFormatted = hours > 0
+                ? `${hours} hr ${minutes} min`
+                : `${minutes} min`;
+
+            // Calculate pace in minutes per kilometer
+            const pace = run.total_distance > 0
+                ? timeInMinutes / (run.total_distance / 1000) // Pace in minutes per km
+                : 0;
+            const paceFormatted = pace > 0
+                ? `${Math.floor(pace)}:${Math.round((pace % 1) * 60).toString().padStart(2, '0')} min/km`
+                : "N/A";
+
+            L.marker(startPoint)
+                .addTo(map)
+                .bindPopup(`
+                    <strong>Run ID:</strong> ${run.id}<br>
+                    <strong>Date:</strong> ${run.date}<br>
+                    <strong>Distance:</strong> ${(run.total_distance / 1000).toFixed(2)} km<br>
+                    <strong>Time:</strong> ${timeFormatted}<br>
+                    <strong>Pace:</strong> ${paceFormatted}
+                `)
+                .openPopup();
+
+            // Fit the map to show all routes
+            map.fitBounds(polyline.getBounds());
+        });
+    })
+    .catch(error => {
+        console.error('Error fetching runs data:', error);
+    });
+    </script>
+</body>
+</html>
