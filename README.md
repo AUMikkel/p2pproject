@@ -26,7 +26,7 @@ This app is designed to make running more engaging by allowing you to compete ag
 
 ## Getting Started
 - **Mobile App:** Track your runs and sync data to the cloud.
-- **IoT Watch:** M5StiCk PLUS device for real-time stats and IMU data collection.
+- **IoT Watch:** M5StickC PLUS device for real-time stats and IMU data collection.
 - **Web Platform:** Access runs and leaderboards online.
 
 ## Project Inspiration
