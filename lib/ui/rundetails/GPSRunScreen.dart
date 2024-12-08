@@ -49,7 +49,7 @@ class _GPSRunScreenState extends State<GPSRunScreen> {
   FlutterTts _flutterTts = FlutterTts();
   Stopwatch _stopwatch = Stopwatch(); // Track elapsed time
   double _totalDistance = 0.0; // Track total distance in kilometers
-  double _paceGhost = 7.0; // Threshold pace in minutes per kilometer
+  double _paceGhost = 0.0; // Threshold pace in minutes per kilometer
 
   bool _isDisposed = false;
   bool _isBleConnected = false;
