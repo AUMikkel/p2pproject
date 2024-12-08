@@ -35,4 +35,4 @@ This project draws from the **_Building the Internet of Things with P2P and Clou
 By combining affordable technology, real-time feedback, and online competition, this app aims to make running more fun and engaging for everyone!
 
 ## Known bugs
-If the user tries to stop a recording with starting one, the app will try to save the run, but this want seccuded as there is no run. Will just result in a message saying "Failed to save run.".
+If the user tries to stop a recording using the IoT watch without starting one, the app will try to save the run, but this want seccuded as there is no run. Will just result in a message saying "Failed to save run.".
