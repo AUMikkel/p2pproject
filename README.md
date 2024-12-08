@@ -26,10 +26,13 @@ This app is designed to make running more engaging by allowing you to compete ag
 
 ## Getting Started
 - **Mobile App:** Track your runs and sync data to the cloud.
-- **IoT Watch:** M5StiCk PLUS device for real-time stats and IMU data collection.
+- **IoT Watch:** M5StickC PLUS device for real-time stats and IMU data collection.
 - **Web Platform:** Access runs and leaderboards online.
 
 ## Project Inspiration
 This project draws from the **_Building the Internet of Things with P2P and Cloud Computing_** course, leveraging IoT principles to create a robust and innovative fitness tracking ecosystem.
 
 By combining affordable technology, real-time feedback, and online competition, this app aims to make running more fun and engaging for everyone!
+
+## Known bugs
+If the user tries to stop a recording using the IoT watch without starting one, the app will try to save the run, but this want seccuded as there is no run. Will just result in a message saying "Failed to save run.".
