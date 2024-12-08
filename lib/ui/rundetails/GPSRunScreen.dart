@@ -272,6 +272,7 @@ class _GPSRunScreenState extends State<GPSRunScreen> {
                 _kalmanFilter.reinitialize();
                 _currentVelocity.value = 0.0;
                 _currentPace.value = 0.0;
+                _paceGhost = 0.0;
               });
             } else {
               double vx = 0.0;
@@ -570,10 +571,9 @@ class _GPSRunScreenState extends State<GPSRunScreen> {
     setState(() {
       _isRecording = false;
       _buttonText = 'Start Run';
+      _paceGhost = 0.0;
     });
-
-    // Stop listening to IMU data
-    BleNotificationService().stopListeningToIMUData();
+    BleNotificationService().sendPaceToBleDevice(0.0, 0.0); // Reset pace on BLE device
 
       // Prepare run data for saving
       final routeData = _route.value.map((point) {
